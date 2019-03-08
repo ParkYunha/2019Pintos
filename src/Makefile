@@ -27,3 +27,5 @@ cscope.files::
 
 cscope:: cscope.files
 	cscope -b -q -k
+
+hello
