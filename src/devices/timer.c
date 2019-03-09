@@ -39,9 +39,11 @@ timer_init (void)
      nearest. */
   uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
 
-  outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
-  outb (0x40, count & 0xff);
-  outb (0x40, count >> 8);
+  outb (0x43, 0x34);    
+  /* CW: counter 0, LSB then MSB, mode 2, binary.
+  set our command byte 0x34*/
+  outb (0x40, count & 0xff); /* Set low byte of divisor */
+  outb (0x40, count >> 8); /* Set high byte of divisor */
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
@@ -91,15 +93,28 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+/* set timer interval to multiple of default interval with given tick*/
+void
+set_timer_interval(int64_t ticks){
+  /* 8254 input frequency divided by TIMER_FREQ, rounded to
+     nearest. */
+  uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ * ticks;
+  outb (0x43, 0x34);    
+  /* CW: counter 0, LSB then MSB, mode 2, binary.
+  set our command byte 0x34*/
+  outb (0x40, count & 0xff); /* Set low byte of divisor */
+  outb (0x40, count >> 8); /* Set high byte of divisor */
+  intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+}
+
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  thread_block();
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  set_timer_interval (ticks);
+  thread_block ();
 }
 
 /* Suspends execution for approximately MS milliseconds. */
