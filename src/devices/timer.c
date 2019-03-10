@@ -31,14 +31,16 @@ static void real_time_sleep (int64_t num, int32_t denom);
 
 /* linked list from list.c contains blocked threads*/
 struct list blocked_threads;
+
 /* structure for timer tick 
-of blocked thread with list element*/
-struct tick_elem
+of blocked thread with list element*/ /*J added*/
+struct tick_elem  
 {
   struct list_elem elem;
-  int ticks;
+  int ticks;  //time to wake up
   struct thread * t;
 };
+
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -117,12 +119,12 @@ timer_elapsed (int64_t then)
 
 /* Suspends execution for approximately TICKS timer ticks. */
 void
-timer_sleep (int64_t ticks) 
+timer_sleep (int64_t ticks_tosleep) //ticks_tosleep: how long does te sleep
 {
   ASSERT (intr_get_level () == INTR_ON);
   struct list_elem *e;
   struct tick_elem *te = list_entry(e, struct tick_elem, elem);
-  te->ticks = ticks;
+  te->ticks = ticks + ticks_tosleep;
   te->t = thread_current;
   list_insert_ordered(&blocked_threads, &(te->elem), value_less, NULL);
   thread_block();
