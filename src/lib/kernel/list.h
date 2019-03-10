@@ -86,7 +86,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* List element. */
+/* List element. */ /*element of a list*/
 struct list_elem 
   {
     struct list_elem *prev;     /* Previous list element. */

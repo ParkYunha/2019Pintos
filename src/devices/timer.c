@@ -30,7 +30,7 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
 /* linked list from list.c contains blocked threads*/
-struct list *blocked_threads;
+struct list blocked_threads;
 /* structure for timer tick 
 of blocked thread with list element*/
 struct tick_elem
@@ -55,7 +55,7 @@ timer_init (void)
   outb (0x40, count & 0xff); /* Set low byte of divisor */
   outb (0x40, count >> 8); /* Set high byte of divisor */
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(blocked_threads);//initialization of lined list
+  list_init(&blocked_threads);//initialization of lined list
 }
 
 /* Returns true if value A is less than value B, false
@@ -124,7 +124,7 @@ timer_sleep (int64_t ticks)
   struct tick_elem *te = list_entry(e, struct tick_elem, elem);
   te->ticks = ticks;
   te->t = thread_current;
-  list_insert_ordered(blocked_threads, &(te->elem), value_less, NULL);
+  list_insert_ordered(&blocked_threads, &(te->elem), value_less, NULL);
   thread_block();
 }
 
@@ -159,12 +159,14 @@ timer_print_stats (void)
 void
 timer_wakeup (void)
 {
-  struct tick_elem *te = list_entry(list_front(blocked_threads), 
+  if(list_empty(&blocked_threads))
+    return;
+  struct tick_elem *te = list_entry(list_front(&blocked_threads), 
     struct tick_elem, elem);
   if (te->ticks = ticks) 
   {
     struct thread * t = te->t;
-    list_pop_front(blocked_threads);
+    list_pop_front(&blocked_threads);
     thread_unblock(t);
   }
 }
