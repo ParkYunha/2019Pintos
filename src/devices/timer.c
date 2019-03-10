@@ -29,6 +29,16 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
+/* linked list from list.c contains blocked threads*/
+struct list *blocked_threads;
+/* structure for timer tick 
+of blocked thread with list element*/
+struct tick_elem
+{
+  struct list_elem elem;
+  int ticks;
+  struct thread * t;
+};
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -45,6 +55,18 @@ timer_init (void)
   outb (0x40, count & 0xff); /* Set low byte of divisor */
   outb (0x40, count >> 8); /* Set high byte of divisor */
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init(blocked_threads);//initialization of lined list
+}
+
+/* Returns true if value A is less than value B, false
+   otherwise. */
+static bool
+value_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct tick_elem *a = list_entry (a_, struct tick_elem, elem);
+  const struct tick_elem *b = list_entry (b_, struct tick_elem, elem);
+  return a->ticks < b->ticks;
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -93,28 +115,17 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* set timer interval to multiple of default interval with given tick*/
-void
-set_timer_interval(int64_t ticks){
-  /* 8254 input frequency divided by TIMER_FREQ, rounded to
-     nearest. */
-  uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ * ticks;
-  outb (0x43, 0x34);    
-  /* CW: counter 0, LSB then MSB, mode 2, binary.
-  set our command byte 0x34*/
-  outb (0x40, count & 0xff); /* Set low byte of divisor */
-  outb (0x40, count >> 8); /* Set high byte of divisor */
-  intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-}
-
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  set_timer_interval (ticks);
-  thread_block ();
+  struct list_elem *e;
+  struct tick_elem *te = list_entry(e, struct tick_elem, elem);
+  te->ticks = ticks;
+  te->t = thread_current;
+  list_insert_ordered(blocked_threads, &(te->elem), value_less, NULL);
+  thread_block();
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -144,6 +155,19 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
+
+void
+timer_wakeup (void)
+{
+  struct tick_elem *te = list_entry(list_front(blocked_threads), 
+    struct tick_elem, elem);
+  if (te->ticks = ticks) 
+  {
+    struct thread * t = te->t;
+    list_pop_front(blocked_threads);
+    thread_unblock(t);
+  }
+}
 
 /* Timer interrupt handler. */
 // unblock threrad
@@ -151,6 +175,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  timer_wakeup ();
   thread_tick ();
 }
 
