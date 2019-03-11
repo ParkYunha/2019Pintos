@@ -258,11 +258,12 @@ wakeup_blocked (int64_t ticks)
     return;
   struct tick_elem *te = list_entry(list_front(&blocked_list), 
     struct tick_elem, elem);
-  if (te->ticks = ticks) 
+  if (te->ticks == ticks) 
   {
     struct thread * t = te->t;
     list_pop_front(&blocked_list);
     thread_unblock(t);
+    wakeup_blocked (ticks);
   }
 }
 /* Transitions a blocked thread T to the ready-to-run state.
