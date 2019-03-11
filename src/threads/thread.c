@@ -237,16 +237,18 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
 }
 /* put blocked_thread with wakeup tick in the linked list*/
 void
-thread_block_timered (int64_t ticks, int64_t ticks_tosleep)
+thread_block_timered (int64_t ticks, int64_t ticks_tosleep)//TODO:this
 {
-  struct list_elem *e;
-  struct list l;
-  e = &(l.head);
-  struct tick_elem *te = list_entry(e, struct tick_elem, elem);
+  struct list_elem e;
+  struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem));//TODO:Free it
+  te->elem = e;
   te->ticks = ticks + ticks_tosleep;
   te->t = thread_current ();
   list_insert_ordered(&blocked_list, &(te->elem), value_less, NULL);
+  enum intr_level old_level;
+  old_level = intr_disable ();
   thread_block ();
+  intr_set_level (old_level);
 }
 
 void
