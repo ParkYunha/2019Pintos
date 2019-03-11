@@ -29,17 +29,10 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
-/* linked list from list.c contains blocked threads*/
-struct list blocked_threads;
 
-/* structure for timer tick 
-of blocked thread with list element*/ /*J added*/
-struct tick_elem  
-{
-  struct list_elem elem;
-  int ticks;  //time to wake up
-  struct thread * t;
-};
+
+
+
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -57,19 +50,9 @@ timer_init (void)
   outb (0x40, count & 0xff); /* Set low byte of divisor */
   outb (0x40, count >> 8); /* Set high byte of divisor */
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(&blocked_threads);//initialization of lined list
 }
 
-/* Returns true if value A is less than value B, false
-   otherwise. */
-static bool
-value_less (const struct list_elem *a_, const struct list_elem *b_,
-            void *aux UNUSED) 
-{
-  const struct tick_elem *a = list_entry (a_, struct tick_elem, elem);
-  const struct tick_elem *b = list_entry (b_, struct tick_elem, elem);
-  return a->ticks < b->ticks;
-}
+
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
 void
@@ -122,12 +105,7 @@ void
 timer_sleep (int64_t ticks_tosleep) //ticks_tosleep: how long does te sleep
 {
   ASSERT (intr_get_level () == INTR_ON);
-  struct list_elem *e;
-  struct tick_elem *te = list_entry(e, struct tick_elem, elem);
-  te->ticks = ticks + ticks_tosleep;
-  te->t = thread_current;
-  list_insert_ordered(&blocked_threads, &(te->elem), value_less, NULL);
-  thread_block();
+  thread_block_timered(ticks, ticks_tosleep);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -161,16 +139,7 @@ timer_print_stats (void)
 void
 timer_wakeup (void)
 {
-  if(list_empty(&blocked_threads))
-    return;
-  struct tick_elem *te = list_entry(list_front(&blocked_threads), 
-    struct tick_elem, elem);
-  if (te->ticks = ticks) 
-  {
-    struct thread * t = te->t;
-    list_pop_front(&blocked_threads);
-    thread_unblock(t);
-  }
+  return wakeup_blocked(ticks);
 }
 
 /* Timer interrupt handler. */

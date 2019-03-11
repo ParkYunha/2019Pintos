@@ -93,6 +93,15 @@ struct list_elem
     struct list_elem *next;     /* Next list element. */
   };
 
+/* structure for timer tick 
+of blocked thread with list element*/ /*J added*/
+struct tick_elem  
+{
+  struct list_elem elem;
+  int ticks;  //time to wake up
+  struct thread * t;
+};
+
 /* List. */
 struct list 
   {

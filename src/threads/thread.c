@@ -28,6 +28,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+/* linked list from list.c contains blocked threads*/
 static struct list blocked_list;
 
 /* Idle thread. */
@@ -96,7 +97,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
-
+  list_init (&blocked_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -223,6 +224,42 @@ thread_block (void)
   schedule ();
 }
 
+/* Returns true if ticks of A is less than ticks of B, false
+   otherwise. */
+static bool
+value_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct tick_elem *a = list_entry (a_, struct tick_elem, elem);
+  const struct tick_elem *b = list_entry (b_, struct tick_elem, elem);
+  return a->ticks < b->ticks;
+}
+/* put blocked_thread with wakeup tick in the linked list*/
+void
+thread_block_timered (int64_t ticks, int64_t ticks_tosleep)
+{
+  struct list_elem *e;
+  struct tick_elem *te = list_entry(e, struct tick_elem, elem);
+  te->ticks = ticks + ticks_tosleep;
+  te->t = thread_current;
+  list_insert_ordered(&blocked_list, &(te->elem), value_less, NULL);
+  thread_block ();
+}
+
+void
+wakeup_blocked (int64_t ticks)
+{
+  if(list_empty(&blocked_list))
+    return;
+  struct tick_elem *te = list_entry(list_front(&blocked_list), 
+    struct tick_elem, elem);
+  if (te->ticks = ticks) 
+  {
+    struct thread * t = te->t;
+    list_pop_front(&blocked_list);
+    thread_unblock(t);
+  }
+}
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
