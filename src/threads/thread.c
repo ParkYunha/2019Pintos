@@ -1,6 +1,7 @@
 #include "threads/thread.h"
 #include <debug.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
@@ -238,10 +239,10 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
 void
 thread_block_timered (int64_t ticks, int64_t ticks_tosleep)
 {
-  struct list_elem *e;
-  struct tick_elem *te = list_entry(e, struct tick_elem, elem);
+  struct list_elem e;
+  struct tick_elem *te = list_entry(&e, struct tick_elem, elem);
   te->ticks = ticks + ticks_tosleep;
-  te->t = thread_current;
+  te->t = thread_current ();
   list_insert_ordered(&blocked_list, &(te->elem), value_less, NULL);
   thread_block ();
 }
