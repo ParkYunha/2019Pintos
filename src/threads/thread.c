@@ -75,6 +75,13 @@ static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+
+
+static bool
+value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED);
+
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -144,6 +151,18 @@ thread_tick (void)
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
+
+
+void
+thread_push_priority(struct thread * t) /*we added*/
+{
+  list_insert_ordered(&ready_list, &(t->elem), value_priority_more, NULL);
+
+  if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
+  {
+    thread_yield();
+  }
+};
 
 /* Prints thread statistics. */
 void
@@ -226,9 +245,9 @@ thread_block (void) //TODO: if the block is in the ready_list, popit..
 }
 
 /* Returns true if ticks of A is less than ticks of B, false
-   otherwise. */
+   otherwise. */ /*we addend*/
 static bool
-value_less (const struct list_elem *a_, const struct list_elem *b_,
+value_tick_less (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED) 
 {
   const struct tick_elem *a = list_entry (a_, struct tick_elem, elem);
@@ -236,25 +255,38 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
   return a->ticks < b->ticks;
 }
 
+/* Returns true if priority of A is more than that of B, false
+   otherwise. */ /*we addend*/
+static bool
+value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  return a->priority > b->priority;
+}
+
+
 
 /* put blocked_thread with wakeup tick in the linked list*/
 void
-thread_block_timered (int64_t ticks, int64_t ticks_tosleep)/*JS added*/ //TODO:this  
+thread_block_timered (int64_t ticks, int64_t ticks_tosleep) /*we added*/  
 {
   struct list_elem e;
-  struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem));//TODO:Free it when destroy
+  struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem)); //TODO:Free it when destroy
   te->elem = e;
   te->ticks = ticks + ticks_tosleep;
   te->t = thread_current ();
-  list_insert_ordered(&blocked_list, &(te->elem), value_less, NULL);
+  list_insert_ordered(&blocked_list, &(te->elem), value_tick_less, NULL);
   enum intr_level old_level;
   old_level = intr_disable ();
   thread_block ();
   intr_set_level (old_level);
 }
 
+
 void
-wakeup_blocked (int64_t ticks)
+wakeup_blocked (int64_t ticks) /*we added*/
 {
   if(list_empty(&blocked_list))
     return;  //nothing to declaire
@@ -504,7 +536,6 @@ alloc_frame (struct thread *t, size_t size)
   t->stack -= size;
   return t->stack;
 }
-
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it

@@ -94,11 +94,11 @@ struct list_elem
   };
 
 /* structure for timer tick 
-of blocked thread with list element*/ /*J added*/
+of blocked thread with list element*/  /*we added*/
 struct tick_elem  
 {
-  struct list_elem elem;
-  int ticks;  //time to wake up
+  struct list_elem elem; 
+  int64_t ticks;  //time to wake up
   struct thread * t;
 };
 
