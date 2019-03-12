@@ -216,8 +216,8 @@ thread_create (const char *name, int priority,
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
 void
-thread_block (void) 
-{
+thread_block (void) //TODO: if the block is in the ready_list, popit..
+{//TODO: differentiate between ready list and blocked_list and total_list
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
@@ -235,12 +235,14 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct tick_elem *b = list_entry (b_, struct tick_elem, elem);
   return a->ticks < b->ticks;
 }
+
+
 /* put blocked_thread with wakeup tick in the linked list*/
 void
-thread_block_timered (int64_t ticks, int64_t ticks_tosleep)//TODO:this
+thread_block_timered (int64_t ticks, int64_t ticks_tosleep)/*JS added*/ //TODO:this  
 {
   struct list_elem e;
-  struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem));//TODO:Free it
+  struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem));//TODO:Free it when destroy
   te->elem = e;
   te->ticks = ticks + ticks_tosleep;
   te->t = thread_current ();
@@ -255,9 +257,9 @@ void
 wakeup_blocked (int64_t ticks)
 {
   if(list_empty(&blocked_list))
-    return;
+    return;  //nothing to declaire
   struct tick_elem *te = list_entry(list_front(&blocked_list), 
-    struct tick_elem, elem);
+    struct tick_elem, elem);  
   if (te->ticks == ticks) 
   {
     struct thread * t = te->t;
@@ -576,11 +578,9 @@ schedule (void)
   struct thread *curr = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
-
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (curr->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
-
   if (curr != next)
     prev = switch_threads (curr, next);
   schedule_tail (prev); 

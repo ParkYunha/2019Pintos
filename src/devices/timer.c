@@ -105,7 +105,10 @@ void
 timer_sleep (int64_t ticks_tosleep) //ticks_tosleep: how long does te sleep
 {
   ASSERT (intr_get_level () == INTR_ON);
-  thread_block_timered(ticks, ticks_tosleep);
+  if(ticks_tosleep <= 0)
+    return;
+  else
+    thread_block_timered(ticks, ticks_tosleep);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -137,7 +140,7 @@ timer_print_stats (void)
 }
 
 void
-timer_wakeup (void)
+timer_wakeup (void)  /*we added*/
 {
   return wakeup_blocked(ticks);
 }
@@ -148,7 +151,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  timer_wakeup ();
+  timer_wakeup ();  //we added
   thread_tick ();
 }
 
