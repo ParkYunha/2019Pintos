@@ -328,7 +328,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  thread_push_priority(t);   //TODO: munje
+  thread_push_priority(t);  
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
@@ -336,7 +336,7 @@ thread_unblock (struct thread *t)
     thread_yield();
   }
 }
-/*unblock function for timer interrupt*/
+/*unblock function for timer interrupt*/ //for wakeup_blocked
 void
 thread_unblock2 (struct thread *t) 
 {
@@ -346,10 +346,11 @@ thread_unblock2 (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  thread_push_priority(t);   //TODO: munje
+  thread_push_priority(t);  
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
+
 /* Returns the name of the running thread. */
 const char *
 thread_name (void) 
