@@ -305,11 +305,14 @@ wakeup_blocked (int64_t ticks) /*we added*/
     return;  //nothing to declaire
   struct tick_elem *te = list_entry(list_front(&blocked_list), 
     struct tick_elem, elem);  
+  enum intr_level old_level;
   if (te->ticks == ticks) 
   {
     struct thread * t = te->t;
     list_pop_front(&blocked_list);
+    old_level = intr_disable ();
     thread_unblock(t);
+    intr_set_level (old_level);
     wakeup_blocked (ticks);
   }
 }
