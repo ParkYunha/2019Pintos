@@ -307,7 +307,7 @@ wakeup_blocked (int64_t ticks) /*we added*/
   {
     struct thread * t = te->t;
     list_pop_front(&blocked_list);
-    thread_unblock(t);
+    thread_unblock2(t);
     wakeup_blocked (ticks);
   }
 }
@@ -336,7 +336,20 @@ thread_unblock (struct thread *t)
     thread_yield();
   }
 }
+/*unblock function for timer interrupt*/
+void
+thread_unblock2 (struct thread *t) 
+{
+  enum intr_level old_level;
 
+  ASSERT (is_thread (t));
+
+  old_level = intr_disable ();
+  ASSERT (t->status == THREAD_BLOCKED);
+  thread_push_priority(t);   //TODO: munje
+  t->status = THREAD_READY;
+  intr_set_level (old_level);
+}
 /* Returns the name of the running thread. */
 const char *
 thread_name (void) 
