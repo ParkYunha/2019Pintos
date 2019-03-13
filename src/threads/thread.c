@@ -152,6 +152,7 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
+/* TODO: can remove it*/
 
 void
 thread_push_priority(struct thread * t) /*we added*/
@@ -159,6 +160,16 @@ thread_push_priority(struct thread * t) /*we added*/
   list_insert_ordered(&ready_list, &(t->elem), value_priority_more, NULL);
 
   if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
+  {
+    thread_yield();
+  }
+};
+
+/*TODO: jusuck */
+void
+compare_curr_ready(void)
+{
+  if(!(list_empty(&ready_list)) && thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
   {
     thread_yield();
   }
@@ -224,6 +235,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+
+  compare_curr_ready(); /*we added*/
 
   return tid;
 }
@@ -317,7 +330,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &(t->elem), value_priority_more, NULL);
+  //list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -386,7 +400,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (curr != idle_thread) 
-    list_push_back (&ready_list, &curr->elem);
+    list_insert_ordered(&ready_list, &(curr->elem), value_priority_more, NULL);
+    //list_push_back (&ready_list, &curr->elem);
   curr->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -397,6 +412,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  compare_curr_ready(); //we added
 }
 
 /* Returns the current thread's priority. */
