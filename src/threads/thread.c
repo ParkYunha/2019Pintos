@@ -152,15 +152,26 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
-
+/*push a thread in order of it's priority to the ready_list */
 void
 thread_push_priority(struct thread * t) /*we added*/
 {
   list_insert_ordered(&ready_list, &(t->elem), value_priority_more, NULL);
-
-/*  if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
+  /*
+  struct thread *curr = thread_current ();
+  
+  if(curr->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
   {
     thread_yield();
+    
+    enum intr_level old_level;
+    ASSERT (!intr_context ());
+    old_level = intr_disable ();
+    if (curr != idle_thread) 
+      list_insert_ordered(&ready_list, &(t->elem), value_priority_more, NULL);
+    curr->status = THREAD_READY;
+    schedule ();
+    intr_set_level (old_level);
   }*/
 };
 
@@ -317,9 +328,13 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  thread_push_priority(t);
+  thread_push_priority(t);   //TODO: munje
   t->status = THREAD_READY;
   intr_set_level (old_level);
+  if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
+  {
+    thread_yield();
+  }
 }
 
 /* Returns the name of the running thread. */
@@ -385,12 +400,29 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (curr != idle_thread) 
+  if (curr != idle_thread)//  || !(curr->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
     thread_push_priority(curr);
   curr->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
 }
+/* original
+void
+thread_yield (void) 
+{
+  struct thread *curr = thread_current ();
+  enum intr_level old_level;
+  
+  ASSERT (!intr_context ());
+
+  old_level = intr_disable ();
+  if (curr != idle_thread) 
+    list_push_back (&ready_list, &curr->elem);
+  curr->status = THREAD_READY;
+  schedule ();
+  intr_set_level (old_level);
+}
+*/
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
