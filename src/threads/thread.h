@@ -119,7 +119,9 @@ void thread_block (void);
 void thread_block_timered (int64_t ticks, int64_t ticks_tosleep);
 void wakeup_blocked (int64_t);
 void thread_unblock (struct thread *);
-
+static bool
+value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
