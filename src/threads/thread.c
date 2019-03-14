@@ -167,7 +167,7 @@ thread_push_priority(struct thread * t) /*we added*/
 
 /*TODO: jusuck */
 void
-compare_curr_ready(void)
+thread_compare_curr_ready(void)
 {
   if(!(list_empty(&ready_list)) && thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
   {
@@ -236,7 +236,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  compare_curr_ready(); /*we added*/
+  thread_compare_curr_ready(); /*we added*/
 
   return tid;
 }
@@ -310,11 +310,11 @@ wakeup_blocked (int64_t ticks) /*we added*/
   {
     struct thread * t = te->t;
     list_pop_front(&blocked_list);
-    old_level = intr_disable ();
     thread_unblock(t);
     intr_set_level (old_level);
     wakeup_blocked (ticks);
   }
+//  compare_curr_ready();
 }
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
@@ -415,7 +415,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
-  compare_curr_ready(); //we added
+  thread_compare_curr_ready(); //we added
 }
 
 /* Returns the current thread's priority. */
