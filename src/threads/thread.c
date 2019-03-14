@@ -12,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -311,7 +312,6 @@ thread_wakeup_blocked (int64_t ticks) /*we added*/
     struct thread * t = te->t;
     list_pop_front(&blocked_list);
     thread_unblock(t);
-    intr_set_level (old_level);
     thread_wakeup_blocked (ticks);
   }
 //  compare_curr_ready();
@@ -563,9 +563,23 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
-    return idle_thread;
-  else
+  if (list_empty (&ready_list)){
+    if(!list_empty(&blocked_list)){//non in ready_list
+      int64_t ticks = timer_ticks();
+      int64_t front_ticks = list_entry(list_front(&blocked_list), struct tick_elem, elem)->ticks;
+      
+
+      if(front_ticks <= ticks){//existing thread in blocked_list
+        while(front_ticks <= ticks){
+          thread_wakeup_blocked(front_ticks);
+          front_ticks = list_entry(list_front(&blocked_list), struct tick_elem, elem)->ticks;
+        }
+        return next_thread_to_run();
+      }
+    }
+    return idle_thread;//non in blocked_list or front is not ready to wakeup
+  }
+  else// existing thread in ready_list
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
