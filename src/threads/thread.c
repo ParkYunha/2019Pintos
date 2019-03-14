@@ -153,7 +153,6 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
-/* TODO: can remove it*/
 
 void
 thread_push_priority(struct thread * t) /*we added*/
@@ -166,7 +165,6 @@ thread_push_priority(struct thread * t) /*we added*/
   }
 };
 
-/*TODO: jusuck */
 void
 thread_compare_curr_ready(void)
 {
@@ -250,7 +248,7 @@ thread_create (const char *name, int priority,
    primitives in synch.h. */
 void
 thread_block (void) //TODO: if the block is in the ready_list, popit..
-{//TODO: differentiate between ready list and blocked_list and total_list
+{
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
