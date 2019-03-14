@@ -142,7 +142,7 @@ timer_print_stats (void)
 void
 timer_wakeup (void)  /*we added*/
 {
-  return wakeup_blocked(ticks);
+  return thread_wakeup_blocked(ticks);
 }
 
 /* Timer interrupt handler. */

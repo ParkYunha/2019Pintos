@@ -299,7 +299,7 @@ thread_block_timered (int64_t ticks, int64_t ticks_tosleep) /*we added*/
 
 
 void
-wakeup_blocked (int64_t ticks) /*we added*/
+thread_wakeup_blocked (int64_t ticks) /*we added*/
 {
   if(list_empty(&blocked_list))
     return;  //nothing to declaire
@@ -312,7 +312,7 @@ wakeup_blocked (int64_t ticks) /*we added*/
     list_pop_front(&blocked_list);
     thread_unblock(t);
     intr_set_level (old_level);
-    wakeup_blocked (ticks);
+    thread_wakeup_blocked (ticks);
   }
 //  compare_curr_ready();
 }
