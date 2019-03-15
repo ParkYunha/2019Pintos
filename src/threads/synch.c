@@ -271,13 +271,30 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+  enum intr_level old_level;
+  old_level = intr_disable();
 
   thread_current()->priority = thread_current()->original_priority;
-  thread_yield();
-  /*if(!list_empty(&thread_current()->lock_list))  
+  
+  if(!list_empty(&thread_current()->lock_list))  //multiple
   {
-    
-  } */
+    struct list_elem *e;
+
+      int hp = 0;
+      for (e = list_begin (&thread_current()->lock_list); e != list_end (&thread_current()->lock_list);
+           e = list_next (e))
+        {
+          struct lock *ll = list_entry (e, struct lock, elem);
+          if(!list_empty(&ll->semaphore.waiters) && list_entry(list_front(&ll->semaphore.waiters), struct thread, elem)->priority > hp ) 
+          {
+            hp = list_entry(list_front(&ll->semaphore.waiters), struct thread, elem)->priority;
+          }
+        }
+      if(thread_current()->priority < hp)
+        thread_current()->priority = hp;
+  }
+  intr_set_level(old_level);
+  thread_yield();
   
 }
 
