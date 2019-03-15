@@ -91,6 +91,7 @@ struct thread
     int original_priority;  /* TODO: comment */
     struct list lock_list;
     struct lock *need_lock; 
+    bool donation_flag; //used for lowering
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

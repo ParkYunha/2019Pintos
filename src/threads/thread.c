@@ -413,7 +413,14 @@ thread_yield (void)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  if(!thread_current()->donation_flag)  //no donation
+    thread_current ()->priority = new_priority;
+  else if(new_priority > thread_current()->priority)
+  {
+    thread_current()->donation_flag = false;
+    thread_current()->priority = new_priority;
+  }
+  
   thread_current ()->original_priority = new_priority;
   thread_compare_curr_ready(); //we added
 }

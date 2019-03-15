@@ -247,8 +247,10 @@ donation_need_lock(struct thread *holder, int priority)
   if(holder && holder->priority < priority)
   {
     holder->priority = priority;
+    holder->donation_flag = true;
     if(holder->need_lock && holder->need_lock->holder)
       donation_need_lock(holder->need_lock->holder, priority); 
+      
   }
 }
 
@@ -293,7 +295,8 @@ lock_release (struct lock *lock)
   old_level = intr_disable();
 
   thread_current()->priority = thread_current()->original_priority;
-  
+  thread_current() -> donation_flag = false;
+
   if(!list_empty(&thread_current()->lock_list))  //multiple
   {
     struct list_elem *e;
@@ -308,8 +311,12 @@ lock_release (struct lock *lock)
             hp = list_entry(list_front(&ll->semaphore.waiters), struct thread, elem)->priority;
           }
         }
-      if(thread_current()->priority < hp)
+      if(thread_current()->priority < hp){
         thread_current()->priority = hp;
+        thread_current()->donation_flag = true;
+      }
+      
+      
   }
   intr_set_level(old_level);
   thread_yield();
