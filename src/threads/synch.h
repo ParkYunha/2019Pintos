@@ -40,6 +40,7 @@ struct condition
 struct semaphore_elem 
   {
     struct list_elem elem;              /* List element. */
+    int priority; /*priority of thread*/
     struct semaphore semaphore;         /* This semaphore. */
   };
 

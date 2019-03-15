@@ -45,7 +45,6 @@ void
 sema_init (struct semaphore *sema, unsigned value) 
 {
   ASSERT (sema != NULL);
-
   sema->value = value;
   list_init (&sema->waiters);
 }
@@ -64,12 +63,10 @@ bool
 priority_more2 (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED) 
 {
+  int p =thread_current()->priority;
   const struct semaphore_elem *a = list_entry (a_, struct semaphore_elem, elem);
   const struct semaphore_elem *b = list_entry (b_, struct semaphore_elem, elem);
-  const struct thread * t_a = list_entry(a->semaphore.waiters.head.next, struct thread, elem);
-  const struct thread * t_b = list_entry(b->semaphore.waiters.head.next, struct thread, elem);
-
-  return t_a->priority > t_b->priority;
+  return a->priority > b->priority;
 }
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
@@ -318,6 +315,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);// a-> == *a.
+  waiter.priority = thread_current()->priority;
   list_insert_ordered(&cond->waiters, &waiter.elem, priority_more2, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
