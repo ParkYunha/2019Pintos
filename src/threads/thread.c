@@ -170,13 +170,13 @@ thread_tick (void)
       ready_threads = list_size(&ready_list);
       if(strcmp(thread_current()->name, "idle")) //if not idle
       {
-        ADD_FP_INT(ready_threads, 1);  //ready_threads++
+        ready_threads++;  //ready_threads++
         printf("ready_threads: %d \n", ready_threads);
       }
       int f59 = INT_TO_FP(59);
       int f60 = INT_TO_FP(60);
       int f1 = INT_TO_FP(1);
-      load_avg = ADD_FPS( MUL_FPS(DIV_FPS(f59, f60), load_avg), MUL_FPS(DIV_FPS(f1, f60), ready_threads));
+      load_avg = ADD_FPS( MUL_FPS(DIV_FPS(f59, f60), load_avg), MUL_FP_INT(DIV_FPS(f1, f60), ready_threads));
       // load_avg = (59/60) * load_avg + (1/60) * ready_threads;
       //printf("100 ticks OK - load_avg = %d\n", load_avg);
     }
@@ -583,8 +583,9 @@ int
 thread_get_load_avg (void) 
 {
   //printf("********avg: %d", load_avg);
-  return FP_TO_INT_ROUND_NEAR (load_avg * 100);
+  return FP_TO_INT_ROUND_NEAR (MUL_FP_INT(load_avg, 100));
 }
+//TODO: check fp
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
