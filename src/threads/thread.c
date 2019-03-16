@@ -114,6 +114,7 @@ thread_init (void)   //when system boot
   list_init (&all_thread_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
+  initial_thread->nice = 0;
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
@@ -680,8 +681,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
 
-  t->nice = 0;
+  if(strcmp(name, "main"))
+    t->nice = thread_current()->nice;
   t->recent_cpu = 0;
+  
   if(thread_mlfqs == true)
   {
     int f63 = INT_TO_FP(63);  //PRI_MAX
