@@ -166,16 +166,12 @@ void thread_refresh_priority(){// refresh current, ready, blocked thread
   struct thread * t;
   struct list_elem * l;
   size_t i;
-<<<<<<< HEAD
   struct thread * curr;
   curr = thread_current();
 
   curr->priority = //refresh current thread
     FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
   if(!list_empty(&ready_list)){//refresh threads in ready list
-=======
-  if(!list_empty(&ready_list)){
->>>>>>> 3dfee1b884c64db92a0fb043c7899a7c831d00c0
     l = ready_list.head.next;
     t = list_entry(ready_list.head.next, struct thread, elem);
     for(i=0; i<list_size(&ready_list); i++){
@@ -184,7 +180,6 @@ void thread_refresh_priority(){// refresh current, ready, blocked thread
       l = l->next;
     }
   }
-<<<<<<< HEAD
   if(!list_empty(&blocked_list)){//refresh threads in blocked list
     l = blocked_list.head.next;
     t = list_entry(blocked_list.head.next, struct thread, elem);
@@ -194,8 +189,6 @@ void thread_refresh_priority(){// refresh current, ready, blocked thread
       l = l->next;
     }
   }
-=======
->>>>>>> 3dfee1b884c64db92a0fb043c7899a7c831d00c0
     
 }
 void
