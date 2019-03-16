@@ -96,6 +96,7 @@ struct thread
     bool donation_flag; //used for lowering
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    struct list_elem elem_all;          /* List element for all_thread_lsit */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -143,5 +144,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void thread_renew_priority(void); //mlfqs
+void thread_renew_recent_cpu(void); //mlfqs
 
 #endif /* threads/thread.h */

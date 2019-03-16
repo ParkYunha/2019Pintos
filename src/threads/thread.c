@@ -34,6 +34,9 @@ static struct list ready_list;
 /* linked list from list.c contains blocked threads*/
 static struct list blocked_list;
 
+/* List of all thread : current + ready_list + blocked threads */   //we added
+static struct list all_thread_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -108,6 +111,7 @@ thread_init (void)   //when system boot
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&blocked_list);
+  list_init (&all_thread_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -153,58 +157,85 @@ thread_tick (void)
   if(thread_mlfqs){
     int64_t tt = timer_ticks();
     if(tt % 4 ==0){
-      thread_refresh_priority();
+      thread_renew_priority();
     }
     if(strcmp(thread_current()->name, "idle"))   /*increment by 1 unless idle thread running */
-      thread_current()->recent_cpu++;
+      ADD_FP_INT(thread_current()->recent_cpu, 1);
     
     if(tt % 100 == 0)
-      thread_refresh_recent_cpu();
+      thread_renew_recent_cpu();
     
     if(tt % TIMER_FREQ == 0)
     {
       ready_threads = list_size(&ready_list);
       if(strcmp(thread_current()->name, "idle")) //if not idle
       {
-        ready_threads++;
+        ADD_FP_INT(ready_threads, 1);  //ready_threads++
+        printf("ready_threads: %d \n", ready_threads);
       }
-      load_avg = (59/60) * load_avg + (1/60) * ready_threads;
+      int f59 = INT_TO_FP(59);
+      int f60 = INT_TO_FP(60);
+      int f1 = INT_TO_FP(1);
+      load_avg = ADD_FPS( MUL_FPS(DIV_FPS(f59, f60), load_avg), MUL_FPS(DIV_FPS(f1, f60), ready_threads));
+      // load_avg = (59/60) * load_avg + (1/60) * ready_threads;
+      //printf("100 ticks OK - load_avg = %d\n", load_avg);
     }
   }
+  //TODO: check fp
   
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
 
-/* TODO: comment */
-void thread_refresh_priority(){// refresh current, ready, blocked thread
+/* Renew priority of all threads: current, ready, blocked thread */
+void 
+thread_renew_priority(void)
+{
   struct thread * t;
   struct list_elem * l;
   size_t i;
   struct thread * curr;
   curr = thread_current();
 
-  curr->priority = //refresh current thread
-    FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
-  if(!list_empty(&ready_list)){//refresh threads in ready list
-    t = list_entry(ready_list.head.next, struct thread, elem);
-    for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
+  int f63 = INT_TO_FP(63);  //PRI_MAX
+  
+  if(!list_empty(&all_thread_list))
+  {
+    t = list_entry(all_thread_list.head.next, struct thread, elem);
+    for(l = list_begin(&all_thread_list); l!= list_end(&all_thread_list); l = list_next(l))
+    {
       t =  list_entry(l, struct thread, elem);
-      t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+      t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
     }
+
+  // curr->priority = //renew current thread
+  //   FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
+  //   //FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
+  // if(!list_empty(&ready_list)){//renew threads in ready list
+  //   t = list_entry(ready_list.head.next, struct thread, elem);
+  //   for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
+  //     t =  list_entry(l, struct thread, elem);
+  //     t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
+  //     //t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+  //   }
+  // }
+  // if(!list_empty(&blocked_list)){//renew threads in blocked list
+  //   t = list_entry(blocked_list.head.next, struct thread, elem);
+  //   for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
+  //     t =  list_entry(l, struct thread, elem);
+  //     t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
+  //     //t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+  //   }
+  // }  
   }
-  if(!list_empty(&blocked_list)){//refresh threads in blocked list
-    t = list_entry(blocked_list.head.next, struct thread, elem);
-    for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
-      t =  list_entry(l, struct thread, elem);
-      t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
-    }
-  }  
 }
-/* TODO: comment */
+//TODO: check fp
+
+/* Renew recent_cpu of all threads: current, ready, blocked thread */
 void
-thread_refresh_recent_cpu(){// refresh current, ready, blocked thread
+thread_renew_recent_cpu(void)
+{
   struct thread * t;
   struct list_elem * l;
   size_t i;
@@ -212,25 +243,39 @@ thread_refresh_recent_cpu(){// refresh current, ready, blocked thread
   curr = thread_current();
   int load_avg = thread_get_load_avg();
 
-  curr->recent_cpu = //refresh current thread
-  (2*load_avg)/(2*load_avg + 1) * curr->recent_cpu + curr->nice;
-  //recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
-
-  if(!list_empty(&ready_list)){//refresh threads in ready list
-    t = list_entry(ready_list.head.next, struct thread, elem);
-    for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
+  if(!list_empty(&all_thread_list))
+  {
+    t = list_entry(all_thread_list.head.next, struct thread, elem);
+    for(l = list_begin(&all_thread_list); l!= list_end(&all_thread_list); l = list_next(l))
+    {
       t =  list_entry(l, struct thread, elem);
-      t->priority = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
+      //t->recent_cpu = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
+      ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
     }
   }
-  if(!list_empty(&blocked_list)){//refresh threads in blocked list
-    t = list_entry(blocked_list.head.next, struct thread, elem);
-    for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
-      t =  list_entry(l, struct thread, elem);
-      t->priority = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
-    }
-  }  
+
+  // curr->recent_cpu = //renew current thread
+  // (2*load_avg)/(2*load_avg + 1) * curr->recent_cpu + curr->nice;
+  // ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), curr->recent_cpu), curr->nice);
+  // //recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
+  // if(!list_empty(&ready_list)){//renew threads in ready list
+  //   t = list_entry(ready_list.head.next, struct thread, elem);
+  //   for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
+  //     t =  list_entry(l, struct thread, elem);
+  //     //t->recent_cpu = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
+  //     ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
+  //   }
+  // }
+  // if(!list_empty(&blocked_list)){//renew threads in blocked list
+  //   t = list_entry(blocked_list.head.next, struct thread, elem);
+  //   for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
+  //     t =  list_entry(l, struct thread, elem);
+  //     //t->recent_cpu = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
+  //     ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
+  //   }
+  // }  
 }
+//TODO: check fp
 
 void
 thread_push_priority(struct thread * t) /*we added*/
@@ -462,6 +507,7 @@ thread_exit (void)
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable ();
+  list_remove(&thread_current()->elem_all);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -518,8 +564,11 @@ thread_set_nice (int nice UNUSED)
   struct thread * curr;
   curr = thread_current();
   curr->nice = nice;
-  curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
-}
+  int f63 = INT_TO_FP(63);
+  //curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
+  curr->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
+} 
+//TODO: check fp
 
 /* Returns the current thread's nice value. */
 int
@@ -533,6 +582,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
+  //printf("********avg: %d", load_avg);
   return FP_TO_INT_ROUND_NEAR (load_avg * 100);
 }
 
@@ -540,8 +590,10 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
-  return FP_TO_INT_ROUND_NEAR (thread_current()->recent_cpu * 100);
+  return FP_TO_INT_ROUND_NEAR(MUL_FP_INT(thread_current()->recent_cpu, 100));
+  //return FP_TO_INT_ROUND_NEAR (thread_current()->recent_cpu * 100);
 }
+//TODO: check fp
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -626,16 +678,25 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+
   t->nice = 0;
   t->recent_cpu = 0;
   if(thread_mlfqs == true)
+  {
+    int f63 = INT_TO_FP(63);  //PRI_MAX
+    priority = FP_TO_INT_ROUND_NEAR(SUB_FP_INT(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));   //TODO: check
     priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+  }
   else // round_robin
     t->priority = priority;
+
   t->magic = THREAD_MAGIC;
   list_init(&t->lock_list);
   t->original_priority = priority;
   t->need_lock = NULL;
+
+  if(strcmp(t->name, "idle"))  //not an idle
+    list_push_back(&all_thread_list, &t->elem_all);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
