@@ -428,7 +428,7 @@ thread_wakeup_blocked (int64_t ticks) /*we added*/
     return;  //nothing to declaire
   struct tick_elem *te = list_entry(list_front(&blocked_list), 
     struct tick_elem, elem);  
-  enum intr_level old_level;
+  //enum intr_level old_level;
   if (te->ticks == ticks) 
   {
     struct thread * t = te->t;
