@@ -13,6 +13,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "devices/timer.h"
+#include "threads/fixed_point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -76,7 +77,7 @@ static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-
+int refresh_counter; // counter for recalculating threads priority
 
 static bool
 value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
@@ -107,6 +108,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&blocked_list);
+  refresh_counter = 0;
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -148,13 +150,33 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
+  if(thread_mlfqs){
+    if(++refresh_counter == 4){
+      refresh_counter = 0;
+      thread_refresh_priority();
+    }
+  }
+  
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
 
-
+void thread_refresh_priority(){// refresh current, ready, blocked thread
+  struct thread * t;
+  struct list_elem * l;
+  size_t i;
+  if(!list_empty(&ready_list)){
+    l = ready_list.head.next;
+    t = list_entry(ready_list.head.next, struct thread, elem);
+    for(i=0; i<list_size(&ready_list); i++){
+      t =  list_entry(l, struct thread, elem);
+      t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+      l = l->next;
+    }
+  }
+    
+}
 void
 thread_push_priority(struct thread * t) /*we added*/
 {
@@ -547,7 +569,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  if(thread_mlfqs == false) 
+  t->nice = 0;
+  t->recent_cpu = 0;
+  if(thread_mlfqs == true)
+    priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+  else // round_robin
     t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->lock_list);

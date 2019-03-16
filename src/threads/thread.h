@@ -90,6 +90,7 @@ struct thread
     int priority;                       /* Priority. */
     int original_priority;  /* TODO: comment */
     int nice; /*Thread nice value*/
+    int recent_cpu;
     struct list lock_list;
     struct lock *need_lock; 
     bool donation_flag; //used for lowering
