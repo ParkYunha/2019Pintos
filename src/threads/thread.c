@@ -413,6 +413,8 @@ thread_yield (void)
 void
 thread_set_priority (int new_priority) 
 {
+  if(thread_mlfqs == true)
+    return thread_current()->priority;
   if(!thread_current()->donation_flag)  //no donation
     thread_current ()->priority = new_priority;
   else if(new_priority > thread_current()->priority)
@@ -436,15 +438,14 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  thread_current()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -546,7 +547,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  if(thread_mlfqs == false) 
+    t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->lock_list);
   t->original_priority = priority;
