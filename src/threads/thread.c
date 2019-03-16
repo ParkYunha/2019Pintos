@@ -76,8 +76,8 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+int load_avg;
 
-int refresh_counter; // counter for recalculating threads priority
 
 static bool
 value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
@@ -101,20 +101,19 @@ value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
 /* This is 2016 spring cs330 skeleton code */
 
 void
-thread_init (void) 
+thread_init (void)   //when system boot
 {
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&blocked_list);
-  refresh_counter = 0;
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-
+  load_avg = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -140,6 +139,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+  int ready_threads;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -151,9 +151,24 @@ thread_tick (void)
   else
     kernel_ticks++;
   if(thread_mlfqs){
-    if(++refresh_counter == 4){
-      refresh_counter = 0;
+    int64_t tt = timer_ticks();
+    if(tt % 4 ==0){
       thread_refresh_priority();
+    }
+    if(strcmp(thread_current()->name, "idle"))   /*increment by 1 unless idle thread running */
+      thread_current()->recent_cpu++;
+    
+    if(tt % 100 == 0)
+      thread_refresh_recent_cpu();
+    
+    if(tt % TIMER_FREQ == 0)
+    {
+      ready_threads = list_size(&ready_list);
+      if(strcmp(thread_current()->name, "idle")) //if not idle
+      {
+        ready_threads++;
+      }
+      load_avg = (59/60) * load_avg + (1/60) * ready_threads;
     }
   }
   
@@ -162,6 +177,7 @@ thread_tick (void)
     intr_yield_on_return ();
 }
 
+/* TODO: comment */
 void thread_refresh_priority(){// refresh current, ready, blocked thread
   struct thread * t;
   struct list_elem * l;
@@ -172,25 +188,50 @@ void thread_refresh_priority(){// refresh current, ready, blocked thread
   curr->priority = //refresh current thread
     FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
   if(!list_empty(&ready_list)){//refresh threads in ready list
-    l = ready_list.head.next;
     t = list_entry(ready_list.head.next, struct thread, elem);
-    for(i=0; i<list_size(&ready_list); i++){
+    for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
       t =  list_entry(l, struct thread, elem);
       t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
-      l = l->next;
     }
   }
   if(!list_empty(&blocked_list)){//refresh threads in blocked list
-    l = blocked_list.head.next;
     t = list_entry(blocked_list.head.next, struct thread, elem);
-    for(i=0; i<list_size(&blocked_list); i++){
+    for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
       t =  list_entry(l, struct thread, elem);
       t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
-      l = l->next;
+    }
+  }  
+}
+/* TODO: comment */
+void
+thread_refresh_recent_cpu(){// refresh current, ready, blocked thread
+  struct thread * t;
+  struct list_elem * l;
+  size_t i;
+  struct thread * curr;
+  curr = thread_current();
+  int load_avg = thread_get_load_avg();
+
+  curr->recent_cpu = //refresh current thread
+  (2*load_avg)/(2*load_avg + 1) * curr->recent_cpu + curr->nice;
+  //recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
+
+  if(!list_empty(&ready_list)){//refresh threads in ready list
+    t = list_entry(ready_list.head.next, struct thread, elem);
+    for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
+      t =  list_entry(l, struct thread, elem);
+      t->priority = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
     }
   }
-    
+  if(!list_empty(&blocked_list)){//refresh threads in blocked list
+    t = list_entry(blocked_list.head.next, struct thread, elem);
+    for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
+      t =  list_entry(l, struct thread, elem);
+      t->priority = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
+    }
+  }  
 }
+
 void
 thread_push_priority(struct thread * t) /*we added*/
 {
@@ -474,7 +515,10 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  thread_current()->nice = nice;
+  struct thread * curr;
+  curr = thread_current();
+  curr->nice = nice;
+  curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
 }
 
 /* Returns the current thread's nice value. */
@@ -485,20 +529,18 @@ thread_get_nice (void)
 }
 
 /* Returns 100 times the system load average. */
+/*TODO: comment */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FP_TO_INT_ROUND_NEAR (load_avg * 100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  thread_current = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
-  return 0;
+  return FP_TO_INT_ROUND_NEAR (thread_current()->recent_cpu * 100);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
