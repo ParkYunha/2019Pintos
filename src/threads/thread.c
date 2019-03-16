@@ -81,7 +81,7 @@ void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 int load_avg;
 
-
+/* Return whether priority of a is bigger than b or not. */
 static bool
 value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED);
@@ -114,8 +114,10 @@ thread_init (void)   //when system boot
   list_init (&all_thread_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
+
+  init_thread (initial_thread, "main", PRI_DEFAULT);  //create main thread
   initial_thread->nice = 0;
-  init_thread (initial_thread, "main", PRI_DEFAULT);
+  initial_thread->recent_cpu = 0;
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
   load_avg = 0;
@@ -163,11 +165,12 @@ thread_tick (void)
     if(strcmp(thread_current()->name, "idle"))   /*increment by 1 unless idle thread running */
       ADD_FP_INT(thread_current()->recent_cpu, 1);
     
-    if(tt % 100 == 0)
-      thread_renew_recent_cpu();
+    // if(tt % 100 == 0)
+    //   thread_renew_recent_cpu();
     
     if(tt % TIMER_FREQ == 0)
     {
+      thread_renew_recent_cpu();
       ready_threads = list_size(&ready_list);
       if(strcmp(thread_current()->name, "idle")) //if not idle
       {
@@ -207,7 +210,8 @@ thread_renew_priority(void)
     for(l = list_begin(&all_thread_list); l!= list_end(&all_thread_list); l = list_next(l))
     {
       t =  list_entry(l, struct thread, elem);
-      t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
+      t->priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT(SUB_FPS(f63, DIV_FP_INT(t->recent_cpu, 4)), (t->nice * 2)));
+      //t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
     }
 
   // curr->priority = //renew current thread
@@ -251,7 +255,7 @@ thread_renew_recent_cpu(void)
     {
       t =  list_entry(l, struct thread, elem);
       //t->recent_cpu = (2*load_avg)/(2*load_avg + 1) * t->recent_cpu + t->nice;
-      ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
+      t->recent_cpu = ADD_FPS(MUL_FPS(DIV_FPS(MUL_FP_INT(load_avg, 2), ADD_FP_INT(MUL_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
     }
   }
 
@@ -412,7 +416,7 @@ thread_block_timered (int64_t ticks, int64_t ticks_tosleep) /*we added*/
   struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem)); //TODO:Free it when destroy
   te->elem = e;
   te->ticks = ticks + ticks_tosleep;
-  te->t = thread_current ();
+  te->t = thread_current ();//FIXME:munje!
   list_insert_ordered(&blocked_list, &(te->elem), value_tick_less, NULL);
   enum intr_level old_level;
   old_level = intr_disable ();
@@ -481,7 +485,7 @@ thread_current (void)
      have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
-  ASSERT (is_thread (t));
+  ASSERT (is_thread (t));   //FIXME:
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -564,10 +568,17 @@ thread_set_nice (int nice UNUSED)
 {
   struct thread * curr;
   curr = thread_current();
+
   curr->nice = nice;
+
   int f63 = INT_TO_FP(63);
   //curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
-  curr->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
+  curr->priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT( SUB_FPS(f63, DIV_FP_INT(curr->recent_cpu, 4)), (curr->nice * 2) ));
+  //curr->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
+  
+  /* If the running thread no longer has the highest priority, yields. */
+  thread_compare_curr_ready();
+
 } 
 //TODO: check fp
 
@@ -681,15 +692,18 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
 
-  if(strcmp(name, "main"))
-    t->nice = thread_current()->nice;
-  t->recent_cpu = 0;
+  if(strcmp(name, "main"))    //case not main  //main has no parent
+  {
+    t->nice = thread_current()->nice; 
+    t->recent_cpu = thread_current()->recent_cpu;
+  }      
   
   if(thread_mlfqs == true)
   {
     int f63 = INT_TO_FP(63);  //PRI_MAX
-    priority = FP_TO_INT_ROUND_NEAR(SUB_FP_INT(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));   //TODO: check
-    priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
+    t -> priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT(SUB_FPS(f63, DIV_FP_INT(t->recent_cpu, 4)), (t->nice * 2))); //TODO: check
+    //priority = FP_TO_INT_ROUND_NEAR(SUB_FP_INT(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));  
+    //priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
   }
   else // round_robin
     t->priority = priority;

@@ -88,8 +88,8 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int original_priority;  /* TODO: comment */
-    int nice; /*Thread nice value*/
+    int original_priority;              /* TODO: comment */
+    int nice;                           /* Thread nice value*/
     int recent_cpu;
     struct list lock_list;
     struct lock *need_lock; 
