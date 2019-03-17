@@ -75,13 +75,13 @@ test_mlfqs_fair (int thread_cnt, int nice_min, int nice_step)
   ASSERT (nice_min >= -10);
   ASSERT (nice_step >= 0);
   ASSERT (nice_min + nice_step * (thread_cnt - 1) <= 20);
-
+  msg("tid: %s",thread_current()->name);
   thread_set_nice (-20);
 
   start_time = timer_ticks ();
   msg ("Starting %d threads...", thread_cnt);
   nice = nice_min;
-  for (i = 0; i < thread_cnt; i++) 
+  for (i = 0; i < thread_cnt; i++)   //create and set threads
     {
       struct thread_info *ti = &info[i];
       char name[16];

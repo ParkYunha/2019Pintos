@@ -114,6 +114,7 @@ thread_init (void)   //when system boot
   list_init (&all_thread_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
+  msg("rt nice : %d", initial_thread->nice);
 
   init_thread (initial_thread, "main", PRI_DEFAULT);  //create main thread
   initial_thread->nice = 0;
@@ -158,10 +159,10 @@ thread_tick (void)
   else
     kernel_ticks++;
   if(thread_mlfqs){
-    int tt = timer_ticks();
-    //int64_t tt = timer_ticks(); ////
+    int tt = timer_ticks(); //// change to pass fair
+    //int64_t tt = timer_ticks();
     if(tt % 4 ==0){
-      thread_renew_priority();
+      thread_4tick_renew_priority();  //FIXME: changed to round_down -> need confirm
     }
     if(t != idle_thread)   /* increment by 1 unless idle thread running */
       thread_current()->recent_cpu = ADD_FP_INT(thread_current()->recent_cpu, 1);
@@ -176,7 +177,7 @@ thread_tick (void)
       if(t != idle_thread) //if not idle
       {
         ready_threads++;  //ready_threads++
-        printf("ready_threads: %d \n", ready_threads);
+        //printf("ready_threads: %d \n", ready_threads);
       }
       int f59 = INT_TO_FP(59);
       int f60 = INT_TO_FP(60);
@@ -202,6 +203,7 @@ thread_renew_priority(void)
   size_t i;
   struct thread * curr;
   curr = thread_current();
+  msg("renew_priority>> pre: %d", thread_current()->priority); ////
 
   int f63 = INT_TO_FP(63);  //PRI_MAX
   
@@ -214,30 +216,37 @@ thread_renew_priority(void)
       t->priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT(SUB_FPS(f63, DIV_FP_INT(t->recent_cpu, 4)), (t->nice * 2)));
       //t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
     }
+  }
+  //thread_compare_curr_ready(); //TODO: need it?
+  msg("renew_priority>> post: %d", thread_current()->priority); ////
+}
+//TODO: check fp
 
-  // curr->priority = //renew current thread
-  //   FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
-  //   //FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
-  // if(!list_empty(&ready_list)){//renew threads in ready list
-  //   t = list_entry(ready_list.head.next, struct thread, elem);
-  //   for(l = list_begin(&ready_list); l!= list_end(&ready_list); l = list_next(l)){
-  //     t =  list_entry(l, struct thread, elem);
-  //     t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
-  //     //t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
-  //   }
-  // }
-  // if(!list_empty(&blocked_list)){//renew threads in blocked list
-  //   t = list_entry(blocked_list.head.next, struct thread, elem);
-  //   for(l = list_begin(&blocked_list); l!= list_end(&blocked_list); l = list_next(l)){
-  //     t =  list_entry(l, struct thread, elem);
-  //     t->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(t->recent_cpu, 4), (t->nice * 2))));
-  //     //t->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2));
-  //   }
-  // }  
+void 
+thread_4tick_renew_priority(void)
+{
+  struct thread * t;
+  struct list_elem * l;
+  size_t i;
+  struct thread * curr;
+  curr = thread_current();
+
+  int f63 = INT_TO_FP(63);  //PRI_MAX
+  
+  if(!list_empty(&all_thread_list))
+  {
+    t = list_entry(all_thread_list.head.next, struct thread, elem);
+    for(l = list_begin(&all_thread_list); l!= list_end(&all_thread_list); l = list_next(l))
+    {
+      t =  list_entry(l, struct thread, elem);
+      t->priority = FP_TO_INT_ROUND_DOWN( SUB_FP_INT(SUB_FPS(f63, DIV_FP_INT(t->recent_cpu, 4)), (t->nice * 2)));
+    }
   }
   //thread_compare_curr_ready(); //TODO: need it?
 }
-//TODO: check fp
+
+
+
 
 /* Renew recent_cpu of all threads: current, ready, blocked thread */
 void
@@ -295,6 +304,7 @@ thread_push_priority(struct thread * t) /*we added*/
   }
 };
 
+/* If current's priority is no longer the highest, yields. */
 void
 thread_compare_curr_ready(void)
 {
@@ -412,13 +422,13 @@ value_priority_more (const struct list_elem *a_, const struct list_elem *b_,
 
 /* put blocked_thread with wakeup tick in the linked list*/
 void
-thread_block_timered (int64_t ticks, int64_t ticks_tosleep) /*we added*/  
+thread_block_timered (int64_t ticks, int64_t ticks_tosleep) /*we added*/ 
 {
   struct list_elem e;
   struct tick_elem *te = (struct tick_elem *)malloc(sizeof(struct tick_elem)); //TODO:Free it when destroy
   te->elem = e;
   te->ticks = ticks + ticks_tosleep;
-  te->t = thread_current ();//FIXME:munje!
+  te->t = thread_current ();//FIXME: munje!
   list_insert_ordered(&blocked_list, &(te->elem), value_tick_less, NULL);
   enum intr_level old_level;
   old_level = intr_disable ();
@@ -487,7 +497,7 @@ thread_current (void)
      have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
-  ASSERT (is_thread (t));   //FIXME:
+  ASSERT (is_thread (t));   //FIXME: panic 
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -567,22 +577,35 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int new_nice UNUSED) 
 {
   struct thread * curr;
   curr = thread_current();
 
-  curr->nice = nice;
+  msg("curr nice: %d, new nice: %d", curr->nice, new_nice);
+  curr->nice = new_nice;
 
+  /* recalculate priority: PRI_MAX - (recent_cpu / 4) - (nice * 2) */
   int f63 = INT_TO_FP(63);
-  curr->priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT( SUB_FPS(f63, DIV_FP_INT(curr->recent_cpu, 4)), (curr->nice * 2) ));
-  //curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
-  //curr->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
+  msg("thread_set_nice>> t_id: %d pre_priority: %d, nice: %d",curr->tid, curr->priority, curr->nice); ////
+  int cn = curr->nice;
+  int cr = curr->recent_cpu;
+  int cp = FP_TO_INT_ROUND_NEAR( SUB_FP_INT( SUB_FPS(f63, DIV_FP_INT(cr, 4)), (cn * 2) ));   //FIXME: no problem
+  curr->priority = cp;
+  msg("thread_set_nice>> t_id: %d priority: %d, nice: %d", curr->tid, curr->priority, curr->nice); ////
   
   if(curr->priority > PRI_MAX)
     curr->priority = PRI_MAX;
   else if(curr->priority < PRI_MIN)
     curr->priority = PRI_MIN;
+  
+  if(curr->nice > NICE_MAX)
+    curr->nice = NICE_MAX;
+  else if(curr->nice < NICE_MIN)
+    curr->nice = NICE_MIN;
+
+  msg("thread_set_nice>> t_id: %d post_priority: %d, nice: %d", curr->tid, curr->priority, curr->nice); ////
+
 
   /* If the running thread no longer has the highest priority, yields. */
   thread_compare_curr_ready();
@@ -699,11 +722,17 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
 
-  if(strcmp(name, "main"))    //case not main  //main has no parent
+  if(strcmp(name, "main"))    //case not main  
   {
     t->nice = thread_current()->nice; 
     t->recent_cpu = thread_current()->recent_cpu;
   }      
+  else                        //case main - main has no parent
+  {
+    t->nice = 0;
+    t->recent_cpu = 0;
+  }
+  
   // t->nice = thread_current()->nice; 
   // t->recent_cpu = thread_current()->recent_cpu;
   
@@ -748,8 +777,8 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list)){
     if(!list_empty(&blocked_list)){//non in ready_list
-      int64_t ticks = timer_ticks();
-      int64_t front_ticks = list_entry(list_front(&blocked_list), struct tick_elem, elem)->ticks;
+      int32_t ticks = timer_ticks(); ////
+      int32_t front_ticks = list_entry(list_front(&blocked_list), struct tick_elem, elem)->ticks; ////
       
 
       if(front_ticks <= ticks){//existing thread in blocked_list
