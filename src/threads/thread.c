@@ -158,12 +158,13 @@ thread_tick (void)
   else
     kernel_ticks++;
   if(thread_mlfqs){
-    int64_t tt = timer_ticks();
+    int tt = timer_ticks();
+    //int64_t tt = timer_ticks(); ////
     if(tt % 4 ==0){
       thread_renew_priority();
     }
-    if(strcmp(thread_current()->name, "idle"))   /*increment by 1 unless idle thread running */
-      ADD_FP_INT(thread_current()->recent_cpu, 1);
+    if(t != idle_thread)   /* increment by 1 unless idle thread running */
+      thread_current()->recent_cpu = ADD_FP_INT(thread_current()->recent_cpu, 1);
     
     // if(tt % 100 == 0)
     //   thread_renew_recent_cpu();
@@ -172,7 +173,7 @@ thread_tick (void)
     {
       thread_renew_recent_cpu();
       ready_threads = list_size(&ready_list);
-      if(strcmp(thread_current()->name, "idle")) //if not idle
+      if(t != idle_thread) //if not idle
       {
         ready_threads++;  //ready_threads++
         printf("ready_threads: %d \n", ready_threads);
@@ -234,6 +235,7 @@ thread_renew_priority(void)
   //   }
   // }  
   }
+  //thread_compare_curr_ready(); //TODO: need it?
 }
 //TODO: check fp
 
@@ -506,6 +508,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+//TODO: 스레드 죽이면 그 자식들 - nice랑 recent_cpu 셋할 떄 필요 한가..???
   process_exit ();
 #endif
 
@@ -572,13 +575,17 @@ thread_set_nice (int nice UNUSED)
   curr->nice = nice;
 
   int f63 = INT_TO_FP(63);
-  //curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
   curr->priority = FP_TO_INT_ROUND_NEAR( SUB_FP_INT( SUB_FPS(f63, DIV_FP_INT(curr->recent_cpu, 4)), (curr->nice * 2) ));
+  //curr->priority = FP_TO_INT_ROUND_NEAR(PRI_MAX - (curr->recent_cpu / 4) - (curr->nice * 2));
   //curr->priority = FP_TO_INT_ROUND_NEAR(SUB_FPS(f63, ADD_FP_INT(DIV_FP_INT(curr->recent_cpu, 4), (curr->nice * 2))));
   
+  if(curr->priority > PRI_MAX)
+    curr->priority = PRI_MAX;
+  else if(curr->priority < PRI_MIN)
+    curr->priority = PRI_MIN;
+
   /* If the running thread no longer has the highest priority, yields. */
   thread_compare_curr_ready();
-
 } 
 //TODO: check fp
 
@@ -697,6 +704,8 @@ init_thread (struct thread *t, const char *name, int priority)
     t->nice = thread_current()->nice; 
     t->recent_cpu = thread_current()->recent_cpu;
   }      
+  // t->nice = thread_current()->nice; 
+  // t->recent_cpu = thread_current()->recent_cpu;
   
   if(thread_mlfqs == true)
   {
@@ -713,7 +722,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->original_priority = priority;
   t->need_lock = NULL;
 
-  if(strcmp(t->name, "idle"))  //not an idle
+  if(t != idle_thread)  //not an idle
     list_push_back(&all_thread_list, &t->elem_all);
 }
 
