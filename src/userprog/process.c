@@ -29,7 +29,7 @@ tid_t
 process_execute (const char *cmd) 
 {
   char *fn_copy;
-  tid_t tid;
+  tid_t tid; //  ls -al
  // printf("cmd: %s\n",cmd);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -45,12 +45,14 @@ process_execute (const char *cmd)
   //printf("coppied cmd: %s\n",fn_copy);
   for (token = strtok_r (fn_copy, " ", &save_ptr); token != NULL;
       token = strtok_r (NULL, " ", &save_ptr)){
-       // printf("tokens[%d]: %s\n", i,token);
+        printf("tokens[%d]: %s\n", i,token);
         tokens[i] = token;
         i++;
       }
+  tokens[i] = NULL;
   /* Create a new thread to execute FILE_NAME. */
   printf("program name: %s\n", tokens[0]);
+  printf("fncpy: %s,, cmd:%s\n",fn_copy,cmd);
   tid = thread_create (tokens[0], PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -372,8 +374,8 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      it then user code that passed a null pointer to system calls
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
-  if (phdr->p_vaddr < PGSIZE)
-    return false;
+  //if (phdr->p_vaddr < PGSIZE)
+  //  return false;
 
   /* It's okay. */
   return true;
@@ -447,12 +449,13 @@ setup_stack (void **esp)
   bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
- // printf("page: %x\n",kpage);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success){
         *esp = PHYS_BASE -12;
+      }
+        
       else
         palloc_free_page (kpage);
     }
