@@ -13,8 +13,39 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
-  printf ("system call!\n");
+  /*TODO: validate every pointers*/
+  printf ("system call handler!\n");
+  int sys_num  = *(int*)f->esp;
+  printf("sys_num : %d\n", sys_num);
+  switch(sys_num){
+    case SYS_HALT:
+      break;
+    case SYS_EXIT:
+      break;
+    case SYS_EXEC:
+      break;
+    case SYS_WAIT:
+      break;
+    case SYS_CREATE:
+      break;
+    case SYS_REMOVE:
+      break;
+    case SYS_OPEN:
+      break;
+    case SYS_FILESIZE:
+      break;
+    case SYS_READ:
+      break;
+    case SYS_WRITE:
+      break;
+    case SYS_SEEK:
+      break;
+    case SYS_TELL:
+      break;
+    case SYS_CLOSE:
+      break;
+  }
   thread_exit ();
 }

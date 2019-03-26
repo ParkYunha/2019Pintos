@@ -39,21 +39,9 @@ process_execute (const char *cmd)
   strlcpy (fn_copy, cmd, PGSIZE);
 
   /*tokenize cmd*/
-  char *tokens[16];//FIXME:limit of size?
-  char *token, *save_ptr;
-  int i = 0;
-  //printf("coppied cmd: %s\n",fn_copy);
-  for (token = strtok_r (fn_copy, " ", &save_ptr); token != NULL;
-      token = strtok_r (NULL, " ", &save_ptr)){
-        printf("tokens[%d]: %s\n", i,token);
-        tokens[i] = token;
-        i++;
-      }
-  tokens[i] = NULL;
+  
   /* Create a new thread to execute FILE_NAME. */
-  printf("program name: %s\n", tokens[0]);
-  printf("fncpy: %s,, cmd:%s\n",fn_copy,cmd);
-  tid = thread_create (tokens[0], PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (cmd, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -62,19 +50,73 @@ process_execute (const char *cmd)
 /* A thread function that loads a user process and makes it start
    running. */
 static void
-start_process (void *f_name)
+start_process (void *cmd)
 {
-  char *file_name = f_name;
+  char *file_name;
   struct intr_frame if_;
   bool success;
 
+  int tokens_max_size = 16; //FIXME:limit of size -> 16?
+  char *tokens[16] = {NULL,};
+  char *token, *save_ptr;
+  void* esp;
+  int i = 0,j,k,l;
+  int token_num = 0;
+  //printf("coppied cmd: %s\n",fn_copy);
+  for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
+    token = strtok_r (NULL, " ", &save_ptr)){
+      printf("tokens[%d]: %s\n", i,token);
+      tokens[i] = token;
+      i++;
+    }
+  file_name = tokens[0];
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+  esp = if_.esp;
+  printf("esp: %x", esp);
 
+  for(j = tokens_max_size - 1; j >= 0;j--)
+  {
+    if(tokens[j] != NULL)
+    {
+      token_num++;
+      int token_len = strlen(tokens[j]);
+      for(k = 0; k <= token_len; k++){
+        memset(esp,tokens[j][token_len-k],1);
+     //   *(char *)esp = tokens[j][token_len-k];
+        esp--;
+      }
+      tokens[j] = esp + 1;
+    }
+    
+  }
+  esp -= 4;
+  memset(esp, 0, 5);   //four 0 for word-align, one 0 for argv[4]
+
+  for(l = tokens_max_size - 1; l >= 0; l--)
+  {
+    esp -=4 ;
+    if(tokens[l]!= NULL){
+      *(char**)esp = tokens[l];
+    }
+
+  }
+  esp -= 4;
+  *(char ***)esp = esp+4;
+
+  /* argc */
+  esp -= 4;
+  printf("tokenum: %d\n",token_num);
+  *(int*)esp = token_num;
+
+  /* return address */
+  esp -= 4;
+  *(void **)esp = 0;
+  
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -104,7 +146,9 @@ start_process (void *f_name)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  while(1){
+    ;//FIXME: should be implemented later
+  }
 }
 
 /* Free the current process's resources. */
@@ -453,7 +497,8 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success){
-        *esp = PHYS_BASE -12;
+        printf("setup stack1!!!");
+        *esp = PHYS_BASE-12;//FIXME: -12 should be removed
       }
         
       else
