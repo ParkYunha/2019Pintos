@@ -3,6 +3,8 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,6 +19,9 @@ syscall_handler (struct intr_frame *f)
 {
   /*TODO: validate every pointers*/
   printf ("system call handler!\n");
+  ASSERT(f!=NULL); ASSERT(f->esp != NULL);
+  ASSERT(pagedir_get_page(thread_current()->pagedir, f->esp)!=NULL);
+  
   int sys_num  = *(int*)f->esp;
   printf("sys_num : %d\n", sys_num);
   switch(sys_num){
