@@ -85,8 +85,7 @@ start_process (void *cmd)
   hex_dump(esp, esp, 200, true);
 
 
-  if(success)
-  {
+  
       /* push arguments: argv[0][...] - argv[n][...] */
     for(j = tokens_max_size - 1; j >= 0;j--)
     {
@@ -129,15 +128,17 @@ start_process (void *cmd)
     esp -= 4;
     *(void **)esp = 0;
 
+    printf("8****8*888888888\n");
+    hex_dump(0, 0xbfffffc0, 64, true);
+
     if_.esp = esp;
     
-  }
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
-  printf("ok here1 \n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -145,7 +146,6 @@ start_process (void *cmd)
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
-  printf("ok here2 \n");
   NOT_REACHED ();
 }
 

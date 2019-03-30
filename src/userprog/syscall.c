@@ -25,7 +25,7 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   /*TODO: validate every pointers*/
-  printf ("system call handler!\n");
+  //printf ("system call handler!\n");
   ASSERT(f!=NULL); 
   ASSERT(f->esp != NULL);
   ASSERT(pagedir_get_page(thread_current()->pagedir, f->esp)!=NULL);
@@ -41,9 +41,9 @@ syscall_handler (struct intr_frame *f)
   // //int vaild_buffer = (int)*vaild_buffer_addr;
   // int *valid_length = (int)(f->esp + 12);
 
-  printf("sys_num : %d\n", sys_num);
-  printf("esp: %x\n", f->esp);
-  hex_dump(f->esp, f->esp, 100, true);
+  //printf("sys_num : %d\n", sys_num);
+  //printf("f->esp: %x\n", f->esp);
+  //hex_dump(f->esp, f->esp, 100, true);
   switch(*(uint32_t *)(f->esp)){
     case SYS_HALT: //0
       //halt();
@@ -67,7 +67,8 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_WRITE: //9
       //f->eax = write(valid_fd, (const void)*vaild_buffer_addr, (unsigned)*valid_length);
-      f->eax = write((int)*(uint32_t *)(f->esp + 4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*(uint32_t *)(f->esp + 12));
+      f->eax = write(*((int*)((f->esp) + 4)), *((void **)((f->esp) + 8)), *((unsigned*)((f->esp) + 12)));
+      // f->eax = write((int)*(uint32_t *)(f->esp + 4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*(uint32_t *)(f->esp + 12));
       //f->eax = write(1, (void *)*(uint32_t *)(f->esp + 24), (unsigned int)(PHYS_BASE - (f->esp + 28)));
       //f->eax = write((int)*(uint32_t *)(f->esp + 20), (void *)*(uint32_t *)(f->esp + 24), (unsigned)*(uint32_t *)(f->esp + 28));
       break;
@@ -84,7 +85,7 @@ syscall_handler (struct intr_frame *f)
 
 void exit(int status)
 {
-  printf("%s: exit(%d)\n",thread_name(), status);
+  printf("%s: exit(%d)\n",thread_name(), status); //FIXME: thread_name 말고 file name만
   thread_exit();
 }
 
