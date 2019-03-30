@@ -63,11 +63,11 @@ start_process (void *cmd)
   void* esp;
   int i = 0,j,k,l;
   int token_num = 0;
-  //printf("coppied cmd: %s\n",fn_copy);
+
   /* Argument parsing. -> put in 'tokens' list */
   for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr)){
-      printf("tokens[%d]: %s\n", i,token);
+      //printf("tokens[%d]: %s\n", i,token);
       tokens[i] = token;
       i++;
     }
@@ -79,58 +79,65 @@ start_process (void *cmd)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
   esp = if_.esp;
-  printf("esp: %x", esp);
-  /* push arguments */
-  for(j = tokens_max_size - 1; j >= 0;j--)
+  printf("esp: %x\n", esp);
+
+  //debuging
+  hex_dump(esp, esp, 200, true);
+
+
+  if(success)
   {
-    if(tokens[j] != NULL)
+      /* push arguments: argv[0][...] - argv[n][...] */
+    for(j = tokens_max_size - 1; j >= 0;j--)
     {
-      token_num++;
-      int token_len = strlen(tokens[j]);
-      esp -= (token_len + 1);
-      strlcpy(esp, tokens[j], token_len + 1);
-      tokens_addr[j] = esp;  //remember the address
+      if(tokens[j] != NULL)
+        {
+          token_num++;
+          int token_len = strlen(tokens[j]);
+          esp -= (token_len + 1);
+          strlcpy(esp, tokens[j], token_len + 1);
+          tokens_addr[j] = esp;  /* Remember the address. */
+        }
     }
+
+    /* align */
+    esp = ((size_t)esp/4) * 4;
+
+    /* convention */
+    esp -= 4;
+    *(int *)esp = 0;
+
+    /* argv[0] .. [n] */
+    for(l = tokens_max_size - 1; l >= 0; l--)
+    {
+      if(tokens_addr[l]!= NULL){
+        esp -= 4;
+        *(char **)esp = tokens_addr[l];  //이때 esp의 값이 argv에 해당한다
+      }
+    }
+
+    /* argv */
+    esp -= 4;
+    *(char ***)esp = esp+4;
+
+    /* argc */
+    esp -= 4;
+    //printf("tokenum: %d\n",token_num);
+    *(int *)esp = token_num;
+
+    /* return address */
+    esp -= 4;
+    *(void **)esp = 0;
+
+    if_.esp = esp;
     
   }
-
-  /* align */
-  esp = ((size_t)esp/4) * 4;
-
-  /* convention */
-  esp -= 4;
-  *(int *)esp = 0;
-  //esp -= 4;
-  //memset(esp, 0, 5);   //four 0 for word-align, one 0 for argv[4]
-
-  for(l = tokens_max_size - 1; l >= 0; l--)
-  {
-    if(tokens_addr[l]!= NULL){
-      esp -= 4;
-      *(char**)esp = tokens_addr[l];
-    }
-  }
-
-  /* argv */
-  esp -= 4;
-  *(char ***)esp = esp+4;
-
-  /* argc */
-  esp -= 4;
-  //printf("tokenum: %d\n",token_num);
-  *(int*)esp = token_num;
-
-  /* return address */
-  esp -= 4;
-  *(void **)esp = 0;
-
-  if_.esp = esp;
-  hex_dump(esp, esp, 1000, true);
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
+  printf("ok here1 \n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -138,6 +145,7 @@ start_process (void *cmd)
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
+  printf("ok here2 \n");
   NOT_REACHED ();
 }
 
@@ -155,9 +163,12 @@ start_process (void *cmd)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while(1){
-    ;//FIXME: should be implemented later
-  }
+  int i;
+  for(i = 0; i<10000000; ++i);
+  return -1;
+  // while(1){
+  //   ;//FIXME: should be implemented later
+  // }
 }
 
 /* Free the current process's resources. */
@@ -506,7 +517,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success){
-        *esp = PHYS_BASE;//-12;//FIXME: -12 should be removed
+        *esp = PHYS_BASE;
       }
         
       else
