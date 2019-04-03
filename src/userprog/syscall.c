@@ -8,6 +8,15 @@
 
 static void syscall_handler (struct intr_frame *);
 
+void check_valid_pointer(const void *vaddr)
+{
+  if(!is_user_vaddr(vaddr))
+  {
+    printf("%s: exit(%d)\n", thread_name(), -1);
+    thread_exit();
+  }
+
+}
 void
 syscall_init (void) 
 {
@@ -60,13 +69,15 @@ syscall_handler (struct intr_frame *f)
     }
     case SYS_EXIT: //1
     {
-      int status = (int)*(uint32_t *)(f->esp + 4);
+      check_valid_pointer((f->esp) + 4);
+      int status = (int)*(uint32_t *)((f->esp) + 4);
       printf("%s: exit(%d)\n", thread_name(), status);
       thread_exit();  //FIXME: parent wait blah blah~
       break;  
     }
     case SYS_EXEC: //2
     {
+      check_valid_pointer((f->esp) + 4);
       process_execute(*(char **)((f->esp) + 4)); 
       break;
     }
@@ -90,6 +101,7 @@ syscall_handler (struct intr_frame *f)
       // int fd = *((int *)((f->esp) + 4));
       // void *buffer = *((void **)((f->esp) + 8));
       // unsigned length = *((unsigned*)((f->esp) + 12));
+      check_valid_pointer((f->esp) + 12);
       int i;
       if (fd == 0)  //keboard input from input_getc()
       {
@@ -112,6 +124,7 @@ syscall_handler (struct intr_frame *f)
       // int fd = *((int *)((f->esp) + 4));
       // void *buffer = *((void **)((f->esp) + 8));
       // unsigned length = *((unsigned*)((f->esp) + 12));
+      check_valid_pointer((f->esp) + 12);
       if(fd == 1)  //console io
       {
         putbuf(buffer, length);

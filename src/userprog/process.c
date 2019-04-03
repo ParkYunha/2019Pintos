@@ -44,7 +44,7 @@ process_execute (const char *cmd)
 
   /*tokenize cmd*/ 
 
-  char *tokens[16] = {NULL,};
+  char *tokens[30] = {NULL,};
   char *token, *save_ptr;
   int i = 0;
   for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
@@ -72,9 +72,9 @@ start_process (void *cmd)
   struct intr_frame if_;
   bool success;
 
-  int tokens_max_size = 16; //FIXME:limit of size -> 16?
-  char *tokens[16] = {NULL,};
-  char *tokens_addr[16] = {NULL,};
+  int tokens_max_size = 30; //FIXME:limit of size -> 16?
+  char *tokens[30] = {NULL,};
+  char *tokens_addr[30] = {NULL,};
   char *token, *save_ptr;
   void* esp;
   int i = 0,j,k,l;
