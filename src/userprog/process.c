@@ -30,6 +30,10 @@ process_execute (const char *cmd)
 {
   char *fn_copy;
   tid_t tid; //  ls -al
+  struct thread* t;
+  struct list_elem* e;
+
+  char *cmd_name; //only name of the smd (1st word)
  // printf("cmd: %s\n",cmd);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -38,10 +42,22 @@ process_execute (const char *cmd)
     return TID_ERROR;
   strlcpy (fn_copy, cmd, PGSIZE);
 
-  /*tokenize cmd*/
+  /*tokenize cmd*/ 
+
+  char *tokens[16] = {NULL,};
+  char *token, *save_ptr;
+  int i = 0;
+  for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
+    token = strtok_r (NULL, " ", &save_ptr)){
+      //printf("tokens[%d]: %s\n", i,token);
+      tokens[i] = token;
+      i++;
+    }
+  cmd_name = tokens[0];
+  //printf("#######name: %s\n", cmd_name);
   
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (cmd, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -81,8 +97,8 @@ start_process (void *cmd)
   esp = if_.esp;
   printf("esp: %x\n", esp);
 
-  //debuging
-  hex_dump(esp, esp, 200, true);
+  //for debuging
+  //dump(esp, esp, 200, true);
 
 
   
@@ -128,8 +144,7 @@ start_process (void *cmd)
     esp -= 4;
     *(void **)esp = 0;
 
-    printf("8****8*888888888\n");
-    hex_dump(0, 0xbfffffc0, 64, true);
+    //ex_dump(0, 0xbfffffc0, 64, true); //for debugging
 
     if_.esp = esp;
     

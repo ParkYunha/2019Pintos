@@ -14,6 +14,7 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+//TODO: check valid pointer
 // (void *)valid_pointer(void *p)
 // {
 //   if(is_user_vaddr(p))
@@ -47,6 +48,7 @@ syscall_handler (struct intr_frame *f)
   switch(*(uint32_t *)(f->esp)){
     case SYS_HALT: //0
       //halt();
+      power_off();
       break;
     case SYS_EXIT: //1
       exit((int)*(uint32_t *)(f->esp + 4));
@@ -85,13 +87,15 @@ syscall_handler (struct intr_frame *f)
 
 void exit(int status)
 {
-  printf("%s: exit(%d)\n",thread_name(), status); //FIXME: thread_name 말고 file name만
+  //printf("here!!!!!\n");
+
+  printf("%s: exit(%d)\n",thread_name(), status);
   thread_exit();
 }
 
 int write (int fd, const void *buffer, unsigned length)
 {
-  if(fd == 1)
+  if(fd == 1)  //console io
   {
     putbuf(buffer, length);
     return length;
