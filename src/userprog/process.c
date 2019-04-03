@@ -33,7 +33,7 @@ process_execute (const char *cmd)
   struct thread* t;
   struct list_elem* e;
 
-  char *cmd_name; //only name of the smd (1st word)
+  char *file_name; //only name of the smd (1st word)
  // printf("cmd: %s\n",cmd);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -53,11 +53,11 @@ process_execute (const char *cmd)
       tokens[i] = token;
       i++;
     }
-  cmd_name = tokens[0];
+  file_name = tokens[0];
   //printf("#######name: %s\n", cmd_name);
   
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -95,10 +95,8 @@ start_process (void *cmd)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
   esp = if_.esp;
-  printf("esp: %x\n", esp);
-
-  //for debuging
-  //dump(esp, esp, 200, true);
+  // printf("esp: %x\n", esp);    //for debugging
+  //dump(esp, esp, 200, true);    //for debugging
 
 
   
@@ -144,7 +142,7 @@ start_process (void *cmd)
     esp -= 4;
     *(void **)esp = 0;
 
-    //ex_dump(0, 0xbfffffc0, 64, true); //for debugging
+    // hex_dump(0, 0xbfffffc0, 64, true); //for debugging
 
     if_.esp = esp;
     

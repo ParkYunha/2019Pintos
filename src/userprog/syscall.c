@@ -42,23 +42,43 @@ syscall_handler (struct intr_frame *f)
   // //int vaild_buffer = (int)*vaild_buffer_addr;
   // int *valid_length = (int)(f->esp + 12);
 
-  //printf("sys_num : %d\n", sys_num);
-  //printf("f->esp: %x\n", f->esp);
-  //hex_dump(f->esp, f->esp, 100, true);
-  switch(*(uint32_t *)(f->esp)){
+
+  // printf("sys_num : %d\n", sys_num);
+  // printf("f->esp: %x\n", f->esp);
+  // hex_dump(f->esp, f->esp, 100, false);
+
+  int fd = *((int *)((f->esp) + 4));
+  void *buffer = *((void **)((f->esp) + 8));
+  unsigned length = *((unsigned*)((f->esp) + 12));
+
+  switch(sys_num){
     case SYS_HALT: //0
+    {
       //halt();
       power_off();
       break;
+    }
     case SYS_EXIT: //1
-      exit((int)*(uint32_t *)(f->esp + 4));
-      break;
+    {
+      int status = (int)*(uint32_t *)(f->esp + 4);
+      printf("%s: exit(%d)\n", thread_name(), status);
+      thread_exit();  //FIXME: parent wait blah blah~
+      break;  
+    }
     case SYS_EXEC: //2
+    {
+      process_execute(*(char **)((f->esp) + 4)); 
       break;
+    }
     case SYS_WAIT: //3
+    {
+      process_wait(thread_tid());
       break;
+    }
     case SYS_CREATE: //4
+    {
       break;
+    }
     case SYS_REMOVE: //5
       break;
     case SYS_OPEN: //6
@@ -66,11 +86,42 @@ syscall_handler (struct intr_frame *f)
     case SYS_FILESIZE: //7
       break;
     case SYS_READ: //8 
+    {
+      // int fd = *((int *)((f->esp) + 4));
+      // void *buffer = *((void **)((f->esp) + 8));
+      // unsigned length = *((unsigned*)((f->esp) + 12));
+      int i;
+      if (fd == 0)  //keboard input from input_getc()
+      {
+        for(i = 0; i < length; ++i)
+        {
+          if(((char *)buffer)[i] == NULL)
+            break;
+        }
+        f->eax = i;
+      }
+      else
+      {
+        f->eax = -1;
+      }
       break;
+    }
+
     case SYS_WRITE: //9
+    {
+      // int fd = *((int *)((f->esp) + 4));
+      // void *buffer = *((void **)((f->esp) + 8));
+      // unsigned length = *((unsigned*)((f->esp) + 12));
+      if(fd == 1)  //console io
+      {
+        putbuf(buffer, length);
+        f->eax = length;
+      }
+      else f->eax = -1; //TODO: 일단 fd==1인 경우만 해둔 거임
+
+      // f->eax = write(*((int *)((f->esp) + 4)), *((void **)((f->esp) + 8)), *((unsigned*)((f->esp) + 12)));
       //f->eax = write(valid_fd, (const void)*vaild_buffer_addr, (unsigned)*valid_length);
-      f->eax = write(*((int*)((f->esp) + 4)), *((void **)((f->esp) + 8)), *((unsigned*)((f->esp) + 12)));
-      // f->eax = write((int)*(uint32_t *)(f->esp + 4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*(uint32_t *)(f->esp + 12));
+      //f->eax = write((int)*(uint32_t *)(f->esp + 4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*(uint32_t *)(f->esp + 12));
       //f->eax = write(1, (void *)*(uint32_t *)(f->esp + 24), (unsigned int)(PHYS_BASE - (f->esp + 28)));
       //f->eax = write((int)*(uint32_t *)(f->esp + 20), (void *)*(uint32_t *)(f->esp + 24), (unsigned)*(uint32_t *)(f->esp + 28));
       break;
@@ -80,26 +131,26 @@ syscall_handler (struct intr_frame *f)
       break; 
     case SYS_CLOSE: //12
       break;
+    }
   }
-  //thread_exit (); 
+  //thread_exit ();  //initial
 }
 
 
-void exit(int status)
-{
-  //printf("here!!!!!\n");
+// void exit(int status)
+// {
+//   //printf("here!!!!!\n");
+//   printf("%s: exit(%d)\n", thread_name(), status);
+//   thread_exit();
+// }
 
-  printf("%s: exit(%d)\n",thread_name(), status);
-  thread_exit();
-}
 
-int write (int fd, const void *buffer, unsigned length)
-{
-  if(fd == 1)  //console io
-  {
-    putbuf(buffer, length);
-    return length;
-  }
-  return -1;
-}
-//TODO: 일단 fd==1인 경우만 해둔 거임
+// int write (int fd, const void *buffer, unsigned length)
+// {
+//   if(fd == 1)  //console io
+//   {
+//     putbuf(buffer, length);
+//     return length;
+//   }
+//   return -1;
+// }
