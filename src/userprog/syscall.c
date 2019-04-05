@@ -7,6 +7,7 @@
 #include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
+void exit (int status);
 
 void check_valid_pointer(const void *vaddr)
 {
@@ -34,7 +35,6 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  /*TODO: validate every pointers*/
   //printf ("system call handler!\n");
   ASSERT(f!=NULL); 
   ASSERT(f->esp != NULL);
@@ -60,6 +60,8 @@ syscall_handler (struct intr_frame *f)
   void *buffer = *((void **)((f->esp) + 8));
   unsigned length = *((unsigned*)((f->esp) + 12));
 
+  int i;
+
   switch(sys_num){
     case SYS_HALT: //0
     {
@@ -70,10 +72,11 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_EXIT: //1
     {
-      check_valid_pointer((f->esp) + 4);
+      check_valid_pointer((f->esp) + 4); //fd
       int status = (int)*(uint32_t *)((f->esp) + 4);
-      printf("%s: exit(%d)\n", thread_name(), status);
-      thread_exit();  //FIXME: parent wait blah blah~
+
+      exit(status);
+
       break;  
     }
 
@@ -86,7 +89,7 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_WAIT: //3   //FIXME:
     {
-      check_valid_pointer((f->esp) + 4);
+      check_valid_pointer((f->esp) + 4); //fd
       f->eax = process_wait((tid_t)fd);
       // process_wait(thread_tid());
       break;
@@ -94,23 +97,47 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_CREATE: //4
     {
-      check_valid_pointer((f->esp) + 4);
-      check_valid_pointer((f->esp) + 8);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      // if(fd == NULL)
+      // {
+      //   exit(-1);
+      // }      
+      check_valid_pointer((f->esp) + 4); //fd
+      check_valid_pointer((f->esp) + 8); //buffer
+
       f->eax = filesys_create((const char *)fd, (int32_t)(buffer));
       break;
     }
 
     case SYS_REMOVE: //5
     {
-      check_valid_pointer((f->esp) + 4);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      // if(fd == NULL)
+      // {
+      //   exit(-1);
+      // }
+      check_valid_pointer((f->esp) + 4); //fd
       f->eax = filesys_remove((const char *)fd);
       break;
     }
 
     case SYS_OPEN: //6
     { 
-      check_valid_pointer((f->esp) + 4);
-      int i;
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      // if(fd == NULL)
+      // {
+      //   exit(-1);
+      // }
+      check_valid_pointer((f->esp) + 4); //fd
       struct file* fp = filesys_open((const char *)fd);
      
       if(fp == NULL)  //file could not opened
@@ -135,7 +162,15 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_FILESIZE: //7
     {
-      check_valid_pointer((f->esp) + 4);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      // if(fd == NULL)
+      // {
+      //   exit(-1);
+      // }
+      check_valid_pointer((f->esp) + 4); //fd
       f->eax = file_length(thread_current()->f_d[fd]);
       break;
     }
@@ -145,66 +180,106 @@ syscall_handler (struct intr_frame *f)
       // int fd = *((int *)((f->esp) + 4));
       // void *buffer = *((void **)((f->esp) + 8));
       // unsigned length = *((unsigned*)((f->esp) + 12));
-      check_valid_pointer((f->esp) + 12);
+      check_valid_pointer((f->esp) + 4); //fd
+      check_valid_pointer((f->esp) + 8); //buffer
+      check_valid_pointer((f->esp) + 12); //length
       int i;
-      if (fd == 0)  //keboard input from input_getc()
+      if (fd == 0)  //stdin: keyboard input from input_getc()
       {
         for(i = 0; i < length; ++i)
         {
           if(((char *)buffer)[i] == NULL)
-            break;
+          {
+            break; //remember i
+          }
         }
-        f->eax = i;
       }
-      else
+      else if(fd > 2)  //not stdin
       {
-        f->eax = -1;
+        if(thread_current()->f_d[fd] == NULL)
+        {
+          exit(-1);
+        }
+        f->eax = file_read(thread_current()->f_d[fd], buffer, length);
+        break; //end read
       }
+      f->eax = i;
       break;
     }
 
     case SYS_WRITE: //9
     {
-      // int fd = *((int *)((f->esp) + 4));
-      // void *buffer = *((void **)((f->esp) + 8));
-      // unsigned length = *((unsigned*)((f->esp) + 12));
-      check_valid_pointer((f->esp) + 12);
-      if(fd == 1)  //console io
+      check_valid_pointer((f->esp) + 4); //fd
+      check_valid_pointer((f->esp) + 8); //buffer
+      check_valid_pointer((f->esp) + 12); //length      
+      if(fd == 1)  //stdout: onsole io
       {
         putbuf(buffer, length);
         f->eax = length;
+        break; //end write
       }
-      else f->eax = -1; //TODO: 일단 fd==1인 경우만 해둔 거임
-
-      // f->eax = write(*((int *)((f->esp) + 4)), *((void **)((f->esp) + 8)), *((unsigned*)((f->esp) + 12)));
-      //f->eax = write(valid_fd, (const void)*vaild_buffer_addr, (unsigned)*valid_length);
-      //f->eax = write((int)*(uint32_t *)(f->esp + 4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*(uint32_t *)(f->esp + 12));
-      //f->eax = write(1, (void *)*(uint32_t *)(f->esp + 24), (unsigned int)(PHYS_BASE - (f->esp + 28)));
-      //f->eax = write((int)*(uint32_t *)(f->esp + 20), (void *)*(uint32_t *)(f->esp + 24), (unsigned)*(uint32_t *)(f->esp + 28));
+      else if(fd > 2)  //not stdout
+      {
+        if(thread_current()->f_d[fd] == NULL)
+        {
+          exit(-1);
+        }
+        f->eax = file_write(thread_current()->f_d[fd], buffer, length);
+        break;  //end write
+      }
+      f->eax = -1;
       break;
     }
 
     case SYS_SEEK: //10
     {
-      check_valid_pointer((f->esp) + 4);
-      check_valid_pointer((f->esp) + 8);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      check_valid_pointer((f->esp) + 4); //fd
+      check_valid_pointer((f->esp) + 8); //buffer
       file_seek(thread_current()->f_d[fd], (unsigned)buffer);
       break;
     }
 
     case SYS_TELL: //11
     {
-      check_valid_pointer((f->esp) + 4);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      check_valid_pointer((f->esp) + 4); //fd
       file_tell(thread_current()->f_d[fd]);
       break; 
     }
 
     case SYS_CLOSE: //12
     {
-      check_valid_pointer((f->esp) + 4);
+      if(thread_current()->f_d[fd] == NULL)
+      {
+        exit(-1);
+      }
+      check_valid_pointer((f->esp) + 4); //fd
       file_close(thread_current()->f_d[fd]);
       break;
     }
   }
   //thread_exit ();  //initial
+}
+
+
+void exit (int status)
+{
+  int i;
+  thread_current()->exit_status = status;
+  for(i = 3; i < 128; ++i)
+  {
+    if(thread_current()->f_d[i] != NULL)
+    {
+      file_close(thread_current()->f_d[i]);
+    }
+  }
+  printf("%s: exit(%d)\n", thread_name(), status);
+  thread_exit();  //FIXME: parent wait blah blah~
 }
