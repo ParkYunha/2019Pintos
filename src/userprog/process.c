@@ -35,6 +35,7 @@ process_execute (const char *cmd)
 
   char *file_name; //only name of the smd (1st word)
  // printf("cmd: %s\n",cmd);
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -43,7 +44,6 @@ process_execute (const char *cmd)
   strlcpy (fn_copy, cmd, PGSIZE);
 
   /*tokenize cmd*/ 
-
   char *tokens[30] = {NULL,};
   char *token, *save_ptr;
   int i = 0;
@@ -176,12 +176,28 @@ start_process (void *cmd)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  struct list_elem* e;
+  struct thread* t = NULL;
+  int exit_status;
+
+  for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
+  {
+    t = list_entry(e, struct thread, child_elem);
+    if(child_tid == t->tid)
+    {
+      // sema_down(&(t->child_lock));  //FIXME: 
+      exit_status = t->exit_status;
+      list_remove(&(t->child_elem));
+      // sema_up(&(t->mem_lock));
+      return exit_status;
+    }
+    return -1;
+  }
+  
   int i;
   for(i = 0; i<10000000; ++i);
   return -1;
-  // while(1){
-  //   ;//FIXME: should be implemented later
-  // }
+  
 }
 
 /* Free the current process's resources. */
@@ -207,6 +223,9 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  // sema_up(&(curr->child_lock));
+  // sema_down(&(curr->mem_lock));
+  //FIXME:
 }
 
 /* Sets up the CPU for running user code in the current

@@ -67,6 +67,7 @@ syscall_handler (struct intr_frame *f)
       power_off();
       break;
     }
+
     case SYS_EXIT: //1
     {
       check_valid_pointer((f->esp) + 4);
@@ -75,27 +76,70 @@ syscall_handler (struct intr_frame *f)
       thread_exit();  //FIXME: parent wait blah blah~
       break;  
     }
+
     case SYS_EXEC: //2
     {
       check_valid_pointer((f->esp) + 4);
       process_execute(*(char **)((f->esp) + 4)); 
       break;
     }
-    case SYS_WAIT: //3
+
+    case SYS_WAIT: //3   //FIXME:
     {
-      process_wait(thread_tid());
+      check_valid_pointer((f->esp) + 4);
+      f->eax = process_wait((tid_t)fd);
+      // process_wait(thread_tid());
       break;
     }
+
     case SYS_CREATE: //4
     {
+      check_valid_pointer((f->esp) + 4);
+      check_valid_pointer((f->esp) + 8);
+      f->eax = filesys_create((const char *)fd, (int32_t)(buffer));
       break;
     }
+
     case SYS_REMOVE: //5
+    {
+      check_valid_pointer((f->esp) + 4);
+      f->eax = filesys_remove((const char *)fd);
       break;
+    }
+
     case SYS_OPEN: //6
+    { 
+      check_valid_pointer((f->esp) + 4);
+      int i;
+      struct file* fp = filesys_open((const char *)fd);
+     
+      if(fp == NULL)  //file could not opened
+      {
+        f->eax = -1;
+      }
+      else
+      {
+        for(i = 3; i < 128; ++i)
+        {
+          if(thread_current()->f_d[i] == NULL)
+          {
+            thread_current()->f_d[i] = fp;
+            f->eax = i;
+            break;
+          }
+        }
+      }
+      f->eax = -1; 
       break;
+    }
+
     case SYS_FILESIZE: //7
+    {
+      check_valid_pointer((f->esp) + 4);
+      f->eax = file_length(thread_current()->f_d[fd]);
       break;
+    }
+
     case SYS_READ: //8 
     {
       // int fd = *((int *)((f->esp) + 4));
@@ -138,32 +182,29 @@ syscall_handler (struct intr_frame *f)
       //f->eax = write(1, (void *)*(uint32_t *)(f->esp + 24), (unsigned int)(PHYS_BASE - (f->esp + 28)));
       //f->eax = write((int)*(uint32_t *)(f->esp + 20), (void *)*(uint32_t *)(f->esp + 24), (unsigned)*(uint32_t *)(f->esp + 28));
       break;
+    }
+
     case SYS_SEEK: //10
+    {
+      check_valid_pointer((f->esp) + 4);
+      check_valid_pointer((f->esp) + 8);
+      file_seek(thread_current()->f_d[fd], (unsigned)buffer);
       break;
+    }
+
     case SYS_TELL: //11
+    {
+      check_valid_pointer((f->esp) + 4);
+      file_tell(thread_current()->f_d[fd]);
       break; 
+    }
+
     case SYS_CLOSE: //12
+    {
+      check_valid_pointer((f->esp) + 4);
+      file_close(thread_current()->f_d[fd]);
       break;
     }
   }
   //thread_exit ();  //initial
 }
-
-
-// void exit(int status)
-// {
-//   //printf("here!!!!!\n");
-//   printf("%s: exit(%d)\n", thread_name(), status);
-//   thread_exit();
-// }
-
-
-// int write (int fd, const void *buffer, unsigned length)
-// {
-//   if(fd == 1)  //console io
-//   {
-//     putbuf(buffer, length);
-//     return length;
-//   }
-//   return -1;
-// }
