@@ -289,8 +289,8 @@ syscall_handler (struct intr_frame *f)
         exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
-      check_valid_pointer(*(char **)(f->esp + 4)); //also a pointer
       file_close(thread_current()->f_d[fd]);
+      thread_current()->f_d[fd] = NULL;  //file closed -> make it NULL
       break;
     }
   }
@@ -304,9 +304,9 @@ void exit (int status)
   thread_current()->exit_status = status;
   for(i = 3; i < 128; ++i)
   {
-    if(thread_current()->f_d[i] != NULL)
+    if(thread_current()->f_d[i] != NULL)  //close all files before die
     {
-      file_close(thread_current()->f_d[i]);
+      file_close(thread_current()->f_d[i]);  
     }
   }
   printf("%s: exit(%d)\n", thread_name(), status);
