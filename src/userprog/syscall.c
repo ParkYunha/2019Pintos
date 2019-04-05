@@ -94,6 +94,7 @@ syscall_handler (struct intr_frame *f)
       }      
       check_valid_pointer((f->esp) + 4); //file = first
       check_valid_pointer((f->esp) + 8); //initial_size = second
+      check_valid_pointer(second); //also a pointer 
 
       f->eax = filesys_create((const char *)first, (int32_t)(second));
       break;
@@ -119,6 +120,7 @@ syscall_handler (struct intr_frame *f)
         exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //file = first
+      check_valid_pointer(first); //also a pointer (char *)
       struct file* fp = filesys_open((const char *)first);
      
       if(fp == NULL)  //file could not opened
@@ -163,6 +165,8 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
+      check_valid_pointer(second); //also a pointer
+
       int i;
       if (first == 0)  //stdin: keyboard input from input_getc()
       {
@@ -193,6 +197,8 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
+      check_valid_pointer(second); //also a pointer
+
       int fd = first;
       if(fd == 1)  //stdout: onsole io
       {
@@ -223,6 +229,8 @@ syscall_handler (struct intr_frame *f)
       }
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
+      check_valid_pointer(second); //also a pointer
+      
       file_seek(thread_current()->f_d[fd], (unsigned)second);
       break;
     }
