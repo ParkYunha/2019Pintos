@@ -9,6 +9,20 @@
 static void syscall_handler (struct intr_frame *);
 void exit (int status);
 
+/* Reads a byte at user virtual address UADDR.
+   UADDR must be below PHYS_BASE.
+   Returns the byte value if successful, -1 if a segfault
+   occurred. */
+/* Check null, unmapped */
+static int
+get_user (const uint8_t *uaddr)
+{
+  int result;
+  asm ("movl $1f, %0; movzbl %1, %0; 1:"
+       : "=&a" (result) : "m" (*uaddr));
+  return result;
+}
+
 void check_valid_pointer(const void *vaddr)
 {
   if(!is_user_vaddr(vaddr))
@@ -16,8 +30,8 @@ void check_valid_pointer(const void *vaddr)
     printf("%s: exit(%d)\n", thread_name(), -1);
     thread_exit();
   }
-
 }
+
 void
 syscall_init (void) 
 {
@@ -36,10 +50,17 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   //printf ("system call handler!\n");
-  ASSERT(f!=NULL); 
-  ASSERT(f->esp != NULL);
-  ASSERT(pagedir_get_page(thread_current()->pagedir, f->esp)!=NULL);
+  // ASSERT(f!= NULL); 
+  // ASSERT(f->esp != NULL);
+  // ASSERT(pagedir_get_page(thread_current()->pagedir, f->esp) != NULL);
   
+  //sc-bad-sp
+  check_valid_pointer(f->esp);
+  if(get_user((uint8_t *)f->esp) == -1)
+  {
+    exit(-1);
+  }
+
   int sys_num  = *(uint32_t *)(f->esp);
 
   int first = *((int *)((f->esp) + 4));  //fd or file or pid
@@ -120,8 +141,12 @@ syscall_handler (struct intr_frame *f)
         exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //file = first
-      check_valid_pointer(first); //also a pointer (char *)
-      struct file* fp = filesys_open((const char *)first);
+      check_valid_pointer(*(char **)(f->esp + 4)); //also a pointer
+      // if(get_user((uint8_t *)(f->esp + 4)) == -1) //check if null or unmapped
+      // {
+      //   exit(-1);
+      // }
+      struct file* fp = filesys_open(*(char **)(f->esp + 4));
      
       if(fp == NULL)  //file could not opened
       {
@@ -129,18 +154,18 @@ syscall_handler (struct intr_frame *f)
       }
       else
       {
+        f->eax = -1;
         for(i = 3; i < 128; ++i)
         {
           if(thread_current()->f_d[i] == NULL)
           {
             thread_current()->f_d[i] = fp;
             f->eax = i;
-            break;
+            break;  //end for loop
           }
         }
       }
-      f->eax = -1; 
-      break;
+      break;  //end open
     }
 
     //syscall1 (SYS_FILESIZE, fd);
@@ -165,7 +190,14 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
-      check_valid_pointer(second); //also a pointer
+
+      check_valid_pointer((void *)((f->esp) + 4)); //also a pointer
+      check_valid_pointer((void *)((f->esp) + 8)); //also a pointer
+
+      if(get_user((uint8_t *)(f->esp + 4)) == -1) //check if null or unmapped
+      {
+        exit(-1);
+      }
 
       int i;
       if (first == 0)  //stdin: keyboard input from input_getc()
@@ -230,7 +262,7 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer(second); //also a pointer
-      
+
       file_seek(thread_current()->f_d[fd], (unsigned)second);
       break;
     }
@@ -257,6 +289,7 @@ syscall_handler (struct intr_frame *f)
         exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
+      check_valid_pointer(*(char **)(f->esp + 4)); //also a pointer
       file_close(thread_current()->f_d[fd]);
       break;
     }
