@@ -445,17 +445,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  //FIXME:
-  int i;
+  int i;                    /* Init file descriptor. */
   for(i = 0; i < 128; ++i)
   {
     t->f_d[i] = NULL;
   }
 
-  // sema_init(&(t->child_lock), 0);  //FIXME: init
-  // sema_init&((t->mem_lock), 0);
+  sema_init(&(t->child_lock), 0); 
+  sema_init(&(t->mem_lock), 0);
   list_init(&(t->child_list));
-  // list_push_back(&(running_thread()->child_list), *(t->child_elem));
+  list_push_back(&(running_thread()->child_list), &(t->child_elem));
   //FIXME: weird
 }
 

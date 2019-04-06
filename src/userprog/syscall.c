@@ -38,18 +38,9 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-//TODO: check valid pointer
-// (void *)valid_pointer(void *p)
-// {
-//   if(is_user_vaddr(p))
-//     return *p;
-//   return -1;
-// }
-
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  //printf ("system call handler!\n");
   // ASSERT(f!= NULL); 
   // ASSERT(f->esp != NULL);
   // ASSERT(pagedir_get_page(thread_current()->pagedir, f->esp) != NULL);
@@ -92,7 +83,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXEC: //2
     {
       check_valid_pointer((f->esp) + 4); //file = first
-      process_execute(*(const char *)first);
+      f->eax = process_execute(*(const char *)first);
       //process_execute(*(char **)((f->esp) + 4)); 
       break;
     }
@@ -100,7 +91,7 @@ syscall_handler (struct intr_frame *f)
     //syscall1 (SYS_WAIT, pid);
     case SYS_WAIT: //3   //FIXME:
     {
-      check_valid_pointer((f->esp) + 4); //pid = first
+      check_valid_pointer((f->esp) + 4); //pid = tid = first
       f->eax = process_wait((tid_t)first);
       // process_wait(thread_tid());
       break;
@@ -191,9 +182,6 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
 
-      check_valid_pointer((void *)((f->esp) + 4)); //also a pointer
-      check_valid_pointer((void *)((f->esp) + 8)); //also a pointer
-
       if(get_user((uint8_t *)(f->esp + 4)) == -1) //check if null or unmapped
       {
         exit(-1);
@@ -229,7 +217,6 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
-      check_valid_pointer(second); //also a pointer
 
       int fd = first;
       if(fd == 1)  //stdout: onsole io
@@ -310,5 +297,5 @@ void exit (int status)
     }
   }
   printf("%s: exit(%d)\n", thread_name(), status);
-  thread_exit();  //FIXME: parent wait blah blah~
+  thread_exit(); 
 }

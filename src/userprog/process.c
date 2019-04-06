@@ -34,7 +34,7 @@ process_execute (const char *cmd)
   struct list_elem* e;
 
   char *file_name; //only name of the smd (1st word)
- // printf("cmd: %s\n",cmd);
+ // printf("cmd: %s\n",cmd);    //for debugging
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -43,23 +43,30 @@ process_execute (const char *cmd)
     return TID_ERROR;
   strlcpy (fn_copy, cmd, PGSIZE);
 
-  /*tokenize cmd*/ 
+  /* Tokenize(Parse) cmd. */ 
   char *tokens[30] = {NULL,};
   char *token, *save_ptr;
   int i = 0;
   for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr)){
-      //printf("tokens[%d]: %s\n", i,token);
+      //printf("tokens[%d]: %s\n", i,token);  //for debugging
       tokens[i] = token;
       i++;
     }
   file_name = tokens[0];
-  //printf("#######name: %s\n", cmd_name);
-  
+  //printf("#######name: %s\n", cmd_name);  //for debugging
+
+  /* Invalid name => return tid = -1. */
+  if(filesys_open(file_name) == NULL)
+  {
+    return -1;
+  }
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+
   return tid;
 }
 
@@ -72,7 +79,7 @@ start_process (void *cmd)
   struct intr_frame if_;
   bool success;
 
-  int tokens_max_size = 30; //FIXME:limit of size -> 16?
+  int tokens_max_size = 30; //FIXME:limit of size -> 30 ok?
   char *tokens[30] = {NULL,};
   char *tokens_addr[30] = {NULL,};
   char *token, *save_ptr;
@@ -183,20 +190,20 @@ process_wait (tid_t child_tid UNUSED)
   for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
   {
     t = list_entry(e, struct thread, child_elem);
-    if(child_tid == t->tid)
+    if(child_tid == t->tid)   //list 순회 돌려서 child면 wait 걸기
     {
-      // sema_down(&(t->child_lock));  //FIXME: 
+      sema_down(&(t->child_lock));  //child 있으면 lock 걸기 //FIXME: 
       exit_status = t->exit_status;
       list_remove(&(t->child_elem));
-      // sema_up(&(t->mem_lock));
+      sema_up(&(t->mem_lock));
       return exit_status;
     }
-    return -1;
   }
   
-  int i;
-  for(i = 0; i<10000000; ++i);
   return -1;
+  // int i;
+  // for(i = 0; i<10000000; ++i);
+  // return -1;
   
 }
 
@@ -223,8 +230,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  // sema_up(&(curr->child_lock));
-  // sema_down(&(curr->mem_lock));
+  sema_up(&(curr->child_lock));  //release parent lock when child die
+  sema_down(&(curr->mem_lock));
   //FIXME:
 }
 
