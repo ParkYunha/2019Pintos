@@ -66,15 +66,24 @@ process_execute (const char *cmd)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); //child
 
-  for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
+  if(!list_empty(&(thread_current()->child_list)))
   {
-    t = list_entry(e, struct thread, child_elem);
-    if(tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
+    for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
     {
-      t1 = t;
-      // printf("***process_execute (sema down)t1's tid: %d\n", t->tid);    //for debigging
+      t = list_entry(e, struct thread, child_elem);
+      if(tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
+      {
+        t1 = t;
+        // printf("***process_execute (sema down)t1's tid: %d\n", t->tid);    //for debigging
+      }
     }
   }
+  
+  if(!t1)
+  {
+    return -1;
+  }
+
   sema_down(&(t1->load_lock));    //sema down after creating
 
   if (tid == TID_ERROR)
@@ -231,20 +240,15 @@ process_wait (tid_t child_tid UNUSED)
     return -1;
   }
   t->wait = true;
+  // sema_up(&t->wait_lock); //wait lock release
 
-  // printf("here here!! %s\n", t->name);
   sema_down(&(t->child_lock));  //child 있으면 lock 걸기
   exit_status = t->exit_status;
-  list_remove(&(t->child_elem));  //child die
-  // printf("here here 1\n");
-  sema_up(&(t->memory_lock));   //release
-  // printf("here here 3\n");
 
+  sema_up(&(t->memory_lock));   //release
+  sema_up(&t->wait_lock);
   //t->wait = false;
   return exit_status;
-  // int i;
-  // for(i = 0; i<10000000; ++i);
-  // return -1; 
 }
 
 /* Free the current process's resources. */
@@ -270,14 +274,21 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  if(curr->wait)
-  {
-    sema_up(&(curr->child_lock));
-    sema_down(&(curr->memory_lock));  //lock parent until child pass mem
-    // printf("hhhhhhhere %s\n", curr->name);  //release parent lock when child die
-    
-    // printf("kkkkkkkkkk after sema down - mem lock\n");
-  }
+  // if(curr->wait)
+  // {
+  //   sema_up(&(curr->child_lock));
+  //   sema_down(&(curr->memory_lock));  //lock parent until child pass mem
+  // }
+  /* if wait = false, wait until parent wait(child=curr). */
+  
+  // sema_down(&curr->wait_lock);  //wait until parent wait
+  
+  sema_up(&(curr->child_lock));
+  sema_down(&(curr->memory_lock));  //lock parent until child pass mem
+
+  sema_down(&curr->wait_lock);
+
+  list_remove(&(curr->child_elem));
 }
 
 /* Sets up the CPU for running user code in the current
@@ -386,7 +397,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+  sema_down(&file_sema);
   file = filesys_open (file_name);
+  sema_up(&file_sema);
+  
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -394,7 +408,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Read and verify executable header. */
-  if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
+  sema_down(&file_sema);
+  off_t file_r = file_read (file, &ehdr, sizeof ehdr);
+  sema_up(&file_sema);
+  if (file_r != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
       || ehdr.e_machine != 3
@@ -412,11 +429,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
-      if (file_ofs < 0 || file_ofs > file_length (file))
-        goto done;
-      file_seek (file, file_ofs);
+      sema_down(&file_sema);
+      off_t file_len = file_length(file);
+      sema_up(&file_sema);
 
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+      if (file_ofs < 0 || file_ofs > file_len)
+        goto done;
+
+      sema_down(&file_sema);
+      file_seek (file, file_ofs);
+      sema_up(&file_sema);
+
+      sema_down(&file_sema);
+      off_t file_r = file_read (file, &phdr, sizeof phdr);
+      sema_up(&file_sema);
+
+      if (file_r != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
       switch (phdr.p_type) 
@@ -478,7 +506,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   if(file != NULL)
   {
+    sema_down(&file_sema);
     file_close(file);
+    sema_up(&file_sema);
   }
   // else
   // {
@@ -503,7 +533,10 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false; 
 
   /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off) file_length (file)) 
+  sema_down(&file_sema);
+  off_t file_len = file_length (file);
+  sema_up(&file_sema);
+  if (phdr->p_offset > (Elf32_Off)file_len) 
     return false;
 
   /* p_memsz must be at least as big as p_filesz. */
@@ -560,7 +593,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  sema_down(&file_sema);
   file_seek (file, ofs);
+  sema_up(&file_sema);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Do calculate how to fill this page.
@@ -575,7 +610,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         return false;
 
       /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      sema_down(&file_sema);
+      off_t file_r = file_read (file, kpage, page_read_bytes);
+      sema_up(&file_sema);
+      if (file_r != (int) page_read_bytes)
         {
           palloc_free_page (kpage);
           return false; 

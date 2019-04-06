@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "synch.h"   //semaphore
 
+extern struct semaphore file_sema;
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -14,6 +16,7 @@ enum thread_status
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
     THREAD_DYING        /* About to be destroyed. */
   };
+
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
@@ -100,6 +103,7 @@ struct thread
     struct semaphore load_lock;          /* Sema for load lock. */
     struct semaphore memory_lock;        /* Sema for memory - pass when child die - lock. */
     struct semaphore load_suc_lock;      /* Sema for load success lock. */
+    struct semaphore wait_lock;          /* Sema - wait for wait. */
     bool wait;
     bool success;
     struct list child_list;             /* List of child. */

@@ -15,6 +15,7 @@
 #include "userprog/process.h"
 #endif
 
+struct semaphore file_sema;
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -95,6 +96,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  sema_init (&file_sema, 1);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -456,6 +458,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init(&(t->load_lock), 0);
   sema_init(&(t->memory_lock), 0);
   sema_init(&(t->load_suc_lock), 0);
+  sema_init(&(t->wait_lock), 0);
 
   t->wait = false;
   t->success = false;

@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
-#include "threads/thread.h"
+#include "threads/thread.h"  //->file_sema
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+
+
 
 static void syscall_handler (struct intr_frame *);
 void userp_exit (int status);
@@ -109,7 +111,9 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 8); //initial_size = second
       check_valid_pointer(second); //also a pointer 
 
+      sema_down(&file_sema);
       f->eax = filesys_create((const char *)first, (int32_t)(second));
+      sema_up(&file_sema);
       break;
     }
 
@@ -121,7 +125,9 @@ syscall_handler (struct intr_frame *f)
         userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //file = first
+      sema_down(&file_sema);
       f->eax = filesys_remove((const char *)first);
+      sema_up(&file_sema);
       break;
     }
 
@@ -138,8 +144,10 @@ syscall_handler (struct intr_frame *f)
       // {
       //   exit(-1);
       // }
+      sema_down(&file_sema);
       struct file* fp = filesys_open(*(char **)(f->esp + 4));
-     
+      sema_up(&file_sema);
+      
       if(fp == NULL)  //file could not opened
       {
         f->eax = -1;
@@ -157,6 +165,7 @@ syscall_handler (struct intr_frame *f)
           }
         }
       }
+      
       break;  //end open
     }
 
@@ -172,7 +181,9 @@ syscall_handler (struct intr_frame *f)
       //   exit(-1);
       // }
       check_valid_pointer((f->esp) + 4); //fd = first
+      sema_down(&file_sema);
       f->eax = file_length(thread_current()->f_d[first]);
+      sema_up(&file_sema);
       break;
     }
 
@@ -205,7 +216,9 @@ syscall_handler (struct intr_frame *f)
         {
           userp_exit(-1);
         }
+        sema_down(&file_sema);
         f->eax = file_read(thread_current()->f_d[first], second, third);
+        sema_up(&file_sema);
         break; //end read
       }
       f->eax = i;
@@ -232,7 +245,9 @@ syscall_handler (struct intr_frame *f)
         {
           userp_exit(-1);
         }
+        sema_down(&file_sema);
         f->eax = file_write(thread_current()->f_d[fd], second, third);
+        sema_up(&file_sema);
         break;  //end write
       }
       f->eax = -1;
@@ -251,7 +266,9 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer(second); //also a pointer
 
+      sema_down(&file_sema);
       file_seek(thread_current()->f_d[fd], (unsigned)second);
+      sema_up(&file_sema);
       break;
     }
 
@@ -264,7 +281,10 @@ syscall_handler (struct intr_frame *f)
         userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
+
+      sema_down(&file_sema);
       file_tell(thread_current()->f_d[fd]);
+      sema_up(&file_sema);
       break; 
     }
 
@@ -278,7 +298,10 @@ syscall_handler (struct intr_frame *f)
       }
       check_valid_pointer((f->esp) + 4); //fd = first
       
+      sema_down(&file_sema);
       file_close(thread_current()->f_d[fd]);
+      sema_up(&file_sema);
+
       thread_current()->f_d[fd] = NULL;  //file closed -> make it NULL
       break;
     }
@@ -295,7 +318,9 @@ void userp_exit (int status)  //userprog_exit
   {
     if(thread_current()->f_d[i] != NULL)  //close all files before die
     {
-      file_close(thread_current()->f_d[i]);  
+      sema_down(&file_sema);
+      file_close(thread_current()->f_d[i]);
+      sema_up(&file_sema);
     }
   }
   printf("%s: exit(%d)\n", thread_name(), status);
