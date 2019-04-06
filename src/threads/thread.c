@@ -174,6 +174,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+  
 
   ASSERT (function != NULL);
 
@@ -452,7 +453,13 @@ init_thread (struct thread *t, const char *name, int priority)
   }
 
   sema_init(&(t->child_lock), 0); 
-  sema_init(&(t->mem_lock), 0);
+  sema_init(&(t->load_lock), 0);
+  sema_init(&(t->memory_lock), 0);
+  sema_init(&(t->load_suc_lock), 0);
+
+  t->wait = false;
+  t->success = false;
+
   list_init(&(t->child_list));
   list_push_back(&(running_thread()->child_list), &(t->child_elem));
 }

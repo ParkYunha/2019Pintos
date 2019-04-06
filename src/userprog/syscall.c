@@ -7,7 +7,7 @@
 #include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
-void exit (int status);
+void userp_exit (int status);
 
 /* Reads a byte at user virtual address UADDR.
    UADDR must be below PHYS_BASE.
@@ -27,8 +27,9 @@ void check_valid_pointer(const void *vaddr)
 {
   if(!is_user_vaddr(vaddr))
   {
-    printf("%s: exit(%d)\n", thread_name(), -1);
-    thread_exit();
+    // printf("%s: exit(%d)\n", thread_name(), -1);
+    // thread_exit();
+    userp_exit(-1);
   }
 }
 
@@ -49,7 +50,7 @@ syscall_handler (struct intr_frame *f)
   check_valid_pointer(f->esp);
   if(get_user((uint8_t *)f->esp) == -1)
   {
-    exit(-1);
+    userp_exit(-1);
   }
 
   int sys_num  = *(uint32_t *)(f->esp);
@@ -75,7 +76,7 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //status
       int status = (int)*(uint32_t *)((f->esp) + 4);
 
-      exit(status);
+      userp_exit(status);
       break;  
     }
 
@@ -102,7 +103,7 @@ syscall_handler (struct intr_frame *f)
     {
       if(first == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }      
       check_valid_pointer((f->esp) + 4); //file = first
       check_valid_pointer((f->esp) + 8); //initial_size = second
@@ -117,7 +118,7 @@ syscall_handler (struct intr_frame *f)
     {
       if(first == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //file = first
       f->eax = filesys_remove((const char *)first);
@@ -129,7 +130,7 @@ syscall_handler (struct intr_frame *f)
     { 
       if(first == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //file = first
       check_valid_pointer(*(char **)(f->esp + 4)); //also a pointer
@@ -164,7 +165,7 @@ syscall_handler (struct intr_frame *f)
     {
       if(thread_current()->f_d[first] == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       // if(fd == NULL)
       // {
@@ -184,7 +185,7 @@ syscall_handler (struct intr_frame *f)
 
       if(get_user((uint8_t *)(f->esp + 4)) == -1) //check if null or unmapped
       {
-        exit(-1);
+        userp_exit(-1);
       }
 
       int i;
@@ -202,7 +203,7 @@ syscall_handler (struct intr_frame *f)
       {
         if(thread_current()->f_d[first] == NULL)
         {
-          exit(-1);
+          userp_exit(-1);
         }
         f->eax = file_read(thread_current()->f_d[first], second, third);
         break; //end read
@@ -229,7 +230,7 @@ syscall_handler (struct intr_frame *f)
       {
         if(thread_current()->f_d[fd] == NULL)
         {
-          exit(-1);
+          userp_exit(-1);
         }
         f->eax = file_write(thread_current()->f_d[fd], second, third);
         break;  //end write
@@ -244,7 +245,7 @@ syscall_handler (struct intr_frame *f)
       int fd = first;
       if(thread_current()->f_d[fd] == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
@@ -260,7 +261,7 @@ syscall_handler (struct intr_frame *f)
       int fd = first;
       if(thread_current()->f_d[fd] == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
       file_tell(thread_current()->f_d[fd]);
@@ -273,9 +274,10 @@ syscall_handler (struct intr_frame *f)
       int fd = first;
       if(thread_current()->f_d[fd] == NULL)
       {
-        exit(-1);
+        userp_exit(-1);
       }
       check_valid_pointer((f->esp) + 4); //fd = first
+      
       file_close(thread_current()->f_d[fd]);
       thread_current()->f_d[fd] = NULL;  //file closed -> make it NULL
       break;
@@ -285,7 +287,7 @@ syscall_handler (struct intr_frame *f)
 }
 
 
-void exit (int status)
+void userp_exit (int status)  //userprog_exit
 {
   int i;
   thread_current()->exit_status = status;

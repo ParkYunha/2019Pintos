@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h" /* new */
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -30,7 +31,7 @@ process_execute (const char *cmd)
 {
   char *fn_copy;
   tid_t tid; //  ls -al
-  struct thread* t;
+  struct thread* t, *t1;
   struct list_elem* e;
 
   char *file_name; //only name of the smd (1st word)
@@ -56,18 +57,36 @@ process_execute (const char *cmd)
   file_name = tokens[0];
   //printf("#######name: %s\n", cmd_name);  //for debugging
 
-  /* Invalid name => return tid = -1. */
-  if(file_name == NULL || filesys_open(file_name) == NULL)
+  /* Invalid name => return tid = -1 */
+  if(file_name == NULL)  //|| filesys_open(file_name) == NULL
   {
     return -1;
   }
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); //child
+
+  for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
+  {
+    t = list_entry(e, struct thread, child_elem);
+    if(tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
+    {
+      t1 = t;
+      // printf("***process_execute (sema down)t1's tid: %d\n", t->tid);    //for debigging
+    }
+  }
+  sema_down(&(t1->load_lock));    //sema down after creating
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
-
-  return tid;
+  bool temp = t1->success;
+  sema_up(&t1->load_suc_lock);
+  if(temp)
+  {
+    //printf("success ---- %s\n", t1->name);
+    return tid;
+  }
+  return -1;
 }
 
 /* A thread function that loads a user process and makes it start
@@ -75,11 +94,12 @@ process_execute (const char *cmd)
 static void
 start_process (void *cmd)
 {
+  
   char *file_name;
   struct intr_frame if_;
   bool success;
 
-  int tokens_max_size = 30; //FIXME:limit of size -> 30 ok?
+  int tokens_max_size = 30; 
   char *tokens[30] = {NULL,};
   char *tokens_addr[30] = {NULL,};
   char *token, *save_ptr;
@@ -101,13 +121,14 @@ start_process (void *cmd)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+  thread_current()->success = success;
   esp = if_.esp;
   // printf("esp: %x\n", esp);    //for debugging
   //dump(esp, esp, 200, true);    //for debugging
 
-
-  
-      /* push arguments: argv[0][...] - argv[n][...] */
+  if(success)  //set stack
+  {
+    /* push arguments: argv[0][...] - argv[n][...] */
     for(j = tokens_max_size - 1; j >= 0;j--)
     {
       if(tokens[j] != NULL)
@@ -152,12 +173,22 @@ start_process (void *cmd)
     // hex_dump(0, 0xbfffffc0, 64, true); //for debugging
 
     if_.esp = esp;
-    
+  }
+
+  /* Prevent parent do something during child creating. */
+  // printf("***start process (sema up)curr's tid: %d\n", thread_current()->tid);    //for debigging
+  sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+
+  sema_down(&(thread_current()->load_suc_lock));
+  if (!success)  //missing file..
+  {
+    // printf("start_process - load not success\n");    //for debugging
+    
+    userp_exit(-1);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -184,7 +215,7 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
   struct list_elem* e;
-  struct thread* t = NULL;
+  struct thread* t = NULL, *t1 = NULL;
   int exit_status;
 
   for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
@@ -192,19 +223,28 @@ process_wait (tid_t child_tid UNUSED)
     t = list_entry(e, struct thread, child_elem);
     if(child_tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
     {
-      sema_down(&(t->child_lock));  //child 있으면 lock 걸기
-      exit_status = t->exit_status;
-      list_remove(&(t->child_elem));  //
-      sema_up(&(t->mem_lock));
-      return exit_status;
+      t1 = t;
     }
   }
-  
-  return -1;
+  if(t1 == NULL)
+  {
+    return -1;
+  }
+  t->wait = true;
+
+  // printf("here here!! %s\n", t->name);
+  sema_down(&(t->child_lock));  //child 있으면 lock 걸기
+  exit_status = t->exit_status;
+  list_remove(&(t->child_elem));  //child die
+  // printf("here here 1\n");
+  sema_up(&(t->memory_lock));   //release
+  // printf("here here 3\n");
+
+  //t->wait = false;
+  return exit_status;
   // int i;
   // for(i = 0; i<10000000; ++i);
-  // return -1;
-  
+  // return -1; 
 }
 
 /* Free the current process's resources. */
@@ -230,9 +270,14 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up(&(curr->child_lock));  //release parent lock when child die
-  sema_down(&(curr->mem_lock));
-
+  if(curr->wait)
+  {
+    sema_up(&(curr->child_lock));
+    sema_down(&(curr->memory_lock));  //lock parent until child pass mem
+    // printf("hhhhhhhere %s\n", curr->name);  //release parent lock when child die
+    
+    // printf("kkkkkkkkkk after sema down - mem lock\n");
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -337,7 +382,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
-    goto done;
+    goto done;  //success = false
   process_activate ();
 
   /* Open executable file. */
@@ -345,7 +390,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
-      goto done; 
+      goto done;  //seuccess = false
     }
 
   /* Read and verify executable header. */
@@ -431,7 +476,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if(file != NULL)
+  {
+    file_close(file);
+  }
+  // else
+  // {
+  //   printf("%s: exit(%d)\n", thread_name(), -1);
+  //   thread_exit(); 
+  // }
+  
   return success;
 }
 
