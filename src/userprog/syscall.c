@@ -5,11 +5,19 @@
 #include "threads/thread.h"  //->file_sema
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
-
-
+#include "filesys/off_t.h"  /* new */
 
 static void syscall_handler (struct intr_frame *);
 void userp_exit (int status);
+
+struct file
+  {
+    struct inode *inode;        /* File's inode. */
+    off_t pos;                  /* Current position. */
+    bool deny_write;            /* Has file_deny_write() been called? */
+  };
+  // ctrl c+v from filesys/file.c
+
 
 /* Reads a byte at user virtual address UADDR.
    UADDR must be below PHYS_BASE.
@@ -144,6 +152,8 @@ syscall_handler (struct intr_frame *f)
       // {
       //   exit(-1);
       // }
+
+      struct file* file = *(const char **)(f->esp + 4);
       sema_down(&file_sema);
       struct file* fp = filesys_open(*(char **)(f->esp + 4));
       sema_up(&file_sema);
@@ -155,10 +165,16 @@ syscall_handler (struct intr_frame *f)
       else
       {
         f->eax = -1;
+        if(strcmp(thread_current()->name, file) == 0) //TODO: rox check
+        {
+          file_deny_write(fp);
+        }
+            
         for(i = 3; i < 128; ++i)
         {
           if(thread_current()->f_d[i] == NULL)
           {
+
             thread_current()->f_d[i] = fp;
             f->eax = i;
             break;  //end for loop
@@ -245,6 +261,11 @@ syscall_handler (struct intr_frame *f)
         {
           userp_exit(-1);
         }
+        if(thread_current()->f_d[fd]->deny_write)  //rox
+        {
+          file_deny_write(thread_current()->f_d[fd]);
+        }
+
         sema_down(&file_sema);
         f->eax = file_write(thread_current()->f_d[fd], second, third);
         sema_up(&file_sema);
