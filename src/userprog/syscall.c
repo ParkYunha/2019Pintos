@@ -83,7 +83,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXEC: //2
     {
       check_valid_pointer((f->esp) + 4); //file = first
-      f->eax = process_execute(*(const char *)first);
+      f->eax = process_execute(*(const char **)(f->esp+4));
       //process_execute(*(char **)((f->esp) + 4)); 
       break;
     }

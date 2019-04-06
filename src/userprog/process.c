@@ -57,7 +57,7 @@ process_execute (const char *cmd)
   //printf("#######name: %s\n", cmd_name);  //for debugging
 
   /* Invalid name => return tid = -1. */
-  if(filesys_open(file_name) == NULL)
+  if(file_name == NULL || filesys_open(file_name) == NULL)
   {
     return -1;
   }
@@ -190,11 +190,11 @@ process_wait (tid_t child_tid UNUSED)
   for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
   {
     t = list_entry(e, struct thread, child_elem);
-    if(child_tid == t->tid)   //list 순회 돌려서 child면 wait 걸기
+    if(child_tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
     {
-      sema_down(&(t->child_lock));  //child 있으면 lock 걸기 //FIXME: 
+      sema_down(&(t->child_lock));  //child 있으면 lock 걸기
       exit_status = t->exit_status;
-      list_remove(&(t->child_elem));
+      list_remove(&(t->child_elem));  //
       sema_up(&(t->mem_lock));
       return exit_status;
     }
@@ -232,7 +232,7 @@ process_exit (void)
     }
   sema_up(&(curr->child_lock));  //release parent lock when child die
   sema_down(&(curr->mem_lock));
-  //FIXME:
+
 }
 
 /* Sets up the CPU for running user code in the current
