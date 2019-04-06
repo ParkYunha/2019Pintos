@@ -147,7 +147,7 @@ syscall_handler (struct intr_frame *f)
       sema_down(&file_sema);
       struct file* fp = filesys_open(*(char **)(f->esp + 4));
       sema_up(&file_sema);
-      
+
       if(fp == NULL)  //file could not opened
       {
         f->eax = -1;

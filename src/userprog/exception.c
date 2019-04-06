@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
+#include "userprog/syscall.h" /* new */
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -149,14 +150,20 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if(!user || is_kernel_vaddr(fault_addr))
+  if(!user || is_kernel_vaddr(fault_addr) || not_present)
   {
-      printf("%s: exit(%d)\n", thread_name(), -1);
-      thread_exit();
-  }
-
-  f->eip = f->eax;
-  f->eax = 0xffffffff; //FIXME: not sure
+     userp_exit(-1);
+      // printf("%s: exit(%d)\n", thread_name(), -1);
+      // thread_exit();
+      
+  } //bad-jump2
+  
+   if(!user) //kernel
+   {
+      f->eip = (void *)f->eax;
+      f->eax = 0xffffffff; //FIXME: not sure
+      return; //??
+   }
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
