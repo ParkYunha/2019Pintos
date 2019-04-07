@@ -65,7 +65,7 @@ process_execute (const char *cmd)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy); //child
-
+  
   if(!list_empty(&(thread_current()->child_list)))
   {
     for(e = list_begin(&(thread_current()->child_list)); e != list_end(&(thread_current()->child_list)); e = list_next(e))
@@ -84,12 +84,13 @@ process_execute (const char *cmd)
     return -1;
   }
 
-  sema_down(&(t1->load_lock));    //sema down after creating
+  sema_down(&(t1->load_lock));    //sema down after creating //TODO:
+  sema_down(&(t1->child_exit_lock));
 
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   bool temp = t1->success;
-  sema_up(&t1->load_suc_lock);
+  // sema_up(&t1->load_suc_lock);  //TODO:
   if(temp)
   {
     //printf("success ---- %s\n", t1->name);
@@ -184,18 +185,17 @@ start_process (void *cmd)
     if_.esp = esp;
   }
 
+  palloc_free_page (file_name);
+
   /* Prevent parent do something during child creating. */
   // printf("***start process (sema up)curr's tid: %d\n", thread_current()->tid);    //for debigging
   sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent
-
+  // sema_down(&(thread_current()->load_suc_lock)); //TODO:
+  
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-
-  sema_down(&(thread_current()->load_suc_lock));
   if (!success)  //missing file..
   {
     // printf("start_process - load not success\n");    //for debugging
-    
     userp_exit(-1);
   }
 
@@ -242,11 +242,12 @@ process_wait (tid_t child_tid UNUSED)
   t->wait = true;
   // sema_up(&t->wait_lock); //wait lock release
 
-  sema_down(&(t->child_lock));  //child 있으면 lock 걸기
+  // sema_down(&(t->child_lock));  //child 있으면 lock 걸기
   exit_status = t->exit_status;
+  sema_up(&(t->exit_status_lock));
 
-  sema_up(&(t->memory_lock));   //release
-  sema_up(&t->wait_lock);
+  // sema_up(&(t->memory_lock));   //release
+  // sema_up(&t->wait_lock);
   //t->wait = false;
   return exit_status;
 }
@@ -274,6 +275,10 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  sema_up(&(curr->child_exit_lock));
+  sema_down(&(curr->exit_status_lock));
+
   // if(curr->wait)
   // {
   //   sema_up(&(curr->child_lock));
@@ -283,10 +288,10 @@ process_exit (void)
   
   // sema_down(&curr->wait_lock);  //wait until parent wait
   
-  sema_up(&(curr->child_lock));
-  sema_down(&(curr->memory_lock));  //lock parent until child pass mem
+  // sema_up(&(curr->child_lock));
+  // sema_down(&(curr->memory_lock));  //lock parent until child pass mem
 
-  sema_down(&curr->wait_lock);
+  // sema_down(&curr->wait_lock);
 
   list_remove(&(curr->child_elem));
 }

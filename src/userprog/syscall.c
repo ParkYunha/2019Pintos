@@ -33,6 +33,19 @@ get_user (const uint8_t *uaddr)
   return result;
 }
 
+
+/* Writes BYTE to user address UDST.
+   UDST must be below PHYS_BASE.
+   Returns true if successful, false if a segfault occurred. */
+static bool
+put_user (uint8_t *udst, uint8_t byte)
+{
+  int error_code;
+  asm ("movl $1f, %0; movb %b2, %1; 1:"
+       : "=&a" (error_code), "=m" (*udst) : "r" (byte));
+  return error_code != -1;
+}
+
 void check_valid_pointer(const void *vaddr)
 {
   if(!is_user_vaddr(vaddr))
@@ -62,6 +75,7 @@ syscall_handler (struct intr_frame *f)
   {
     userp_exit(-1);
   }
+  
 
   int sys_num  = *(uint32_t *)(f->esp);
 
@@ -211,6 +225,7 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
+      check_valid_pointer(second); //also a pointer
 
       if(get_user((uint8_t *)(f->esp + 4)) == -1) //check if null or unmapped
       {
@@ -222,10 +237,12 @@ syscall_handler (struct intr_frame *f)
       {
         for(i = 0; i < third; ++i)
         {
-          if(((char *)second)[i] == NULL)
-          {
-            break; //remember i
-          }
+          if(put_user(second++, input_getc())==-1)
+            break;
+          // if(((char *)second)[i] == NULL)
+          // {
+          //   break; //remember i
+          // }
         }
       }
       else if(first > 2)  //not stdin
@@ -249,9 +266,19 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       check_valid_pointer((f->esp) + 8); //buffer = second
       check_valid_pointer((f->esp) + 12); //size = third
+      check_valid_pointer(second);  //also a pointer
+
+      //check buffer validity
+      for(i = 0; i < third; ++i)
+      {
+        if(get_user(second + i) == -1)  //!is_user_vaddr(second + i)
+        {
+          userp_exit(-1);
+        }
+      }
 
       int fd = first;
-      if(fd == 1)  //stdout: onsole io
+      if(fd == 1)  //stdout: console io
       {
         putbuf(second, third);
         f->eax = third;
