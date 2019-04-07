@@ -455,10 +455,14 @@ init_thread (struct thread *t, const char *name, int priority)
   }
 
   sema_init(&(t->child_lock), 0); 
-  sema_init(&(t->load_lock), 0);
+  // sema_init(&(t->load_lock), 0);
   sema_init(&(t->memory_lock), 0);
   sema_init(&(t->load_suc_lock), 0);
   sema_init(&(t->wait_lock), 0);
+
+  sema_init(&(t->load_lock), 0);
+  sema_init(&(t->child_exit_lock), 0);
+  sema_init(&(t->exit_status_lock), 0);
 
   t->wait = false;
   t->success = false;

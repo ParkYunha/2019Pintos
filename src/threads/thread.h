@@ -100,10 +100,15 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct semaphore child_lock;        /* Sema for child waiting. */ 
-    struct semaphore load_lock;          /* Sema for load lock. */
+    // struct semaphore load_lock;          /* Sema for load lock. */
     struct semaphore memory_lock;        /* Sema for memory - pass when child die - lock. */
     struct semaphore load_suc_lock;      /* Sema for load success lock. */
     struct semaphore wait_lock;          /* Sema - wait for wait. */
+
+    struct semaphore child_exit_lock;
+    struct semaphore exit_status_lock;
+    struct semaphore load_lock;
+
     bool wait;
     bool success;
     struct list child_list;             /* List of child. */
