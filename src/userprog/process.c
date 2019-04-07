@@ -29,7 +29,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *cmd) 
 {
-  char *fn_copy;
+  char *fn_copy, *cmd_copy;
   tid_t tid; //  ls -al
   struct thread* t, *t1;
   struct list_elem* e;
@@ -44,18 +44,21 @@ process_execute (const char *cmd)
     return TID_ERROR;
   strlcpy (fn_copy, cmd, PGSIZE);
 
+  cmd_copy = palloc_get_page (0);
+  if (cmd_copy == NULL)
+    return TID_ERROR;
+  strlcpy (cmd_copy, cmd, PGSIZE);
+
   /* Tokenize(Parse) cmd. */ 
   char *tokens[30] = {NULL,};
   char *token, *save_ptr;
   int i = 0;
-  for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
+  for (token = strtok_r (cmd_copy, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr)){
-      //printf("tokens[%d]: %s\n", i,token);  //for debugging
       tokens[i] = token;
       i++;
     }
   file_name = tokens[0];
-  //printf("#######name: %s\n", cmd_name);  //for debugging
 
   /* Invalid name => return tid = -1 */
   if(file_name == NULL)  //|| filesys_open(file_name) == NULL
@@ -74,7 +77,6 @@ process_execute (const char *cmd)
       if(tid == t->tid)   //child list 순회 돌려서 보고있는 자식이면 wait 걸기
       {
         t1 = t;
-        // printf("***process_execute (sema down)t1's tid: %d\n", t->tid);    //for debigging
       }
     }
   }
@@ -88,7 +90,11 @@ process_execute (const char *cmd)
   // sema_down(&(t1->child_exit_lock));
 
   if (tid == TID_ERROR)
+  {
     palloc_free_page (fn_copy); 
+    palloc_free_page (cmd_copy);  
+  }
+    
 
   // bool temp = t1->success;
   // // sema_up(&t1->load_suc_lock);  //TODO:
@@ -118,6 +124,7 @@ start_process (void *cmd)
   void* esp;
   int i = 0,j,k,l;
   int token_num = 0;
+
 
   /* Argument parsing. -> put in 'tokens' list */
   for (token = strtok_r (cmd, " ", &save_ptr); token != NULL;
@@ -190,7 +197,6 @@ start_process (void *cmd)
   palloc_free_page (file_name);
 
   /* Prevent parent do something during child creating. */
-  // printf("***start process (sema up)curr's tid: %d\n", thread_current()->tid);    //for debigging
   sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent
   // sema_down(&(thread_current()->load_suc_lock)); //TODO:
   
@@ -198,7 +204,6 @@ start_process (void *cmd)
   /* If load failed, quit. */
   if (!success)  //missing file..
   {
-    // printf("start_process - load not success\n");    //for debugging
     userp_exit(-1);
   }
 
