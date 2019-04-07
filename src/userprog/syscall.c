@@ -153,7 +153,7 @@ syscall_handler (struct intr_frame *f)
       //   exit(-1);
       // }
 
-      struct file* file = *(const char **)(f->esp + 4);
+      struct file* file = *(char **)(f->esp + 4);
       sema_down(&file_sema);
       struct file* fp = filesys_open(*(char **)(f->esp + 4));
       sema_up(&file_sema);
@@ -165,10 +165,12 @@ syscall_handler (struct intr_frame *f)
       else
       {
         f->eax = -1;
-        if(strcmp(thread_current()->name, file) == 0) //TODO: rox check
+        sema_down(&file_sema);
+        if(strcmp(thread_current()->name, file) == 0) //FIXME: rox check
         {
           file_deny_write(fp);
         }
+        sema_up(&file_sema);
             
         for(i = 3; i < 128; ++i)
         {
@@ -261,7 +263,7 @@ syscall_handler (struct intr_frame *f)
         {
           userp_exit(-1);
         }
-        if(thread_current()->f_d[fd]->deny_write)  //rox
+        if(thread_current()->f_d[fd]->deny_write)  //FIXME: rox check
         {
           file_deny_write(thread_current()->f_d[fd]);
         }
@@ -320,7 +322,9 @@ syscall_handler (struct intr_frame *f)
       check_valid_pointer((f->esp) + 4); //fd = first
       
       sema_down(&file_sema);
+      file_allow_write(thread_current()->f_d[fd]);
       file_close(thread_current()->f_d[fd]);
+      // file_allow_write(thread_current()->f_d[fd]);  //FIXME: it occurs error ... wrong position?
       sema_up(&file_sema);
 
       thread_current()->f_d[fd] = NULL;  //file closed -> make it NULL
