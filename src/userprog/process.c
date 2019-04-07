@@ -96,15 +96,14 @@ process_execute (const char *cmd)
   }
     
 
-  // bool temp = t1->success;
-  // // sema_up(&t1->load_suc_lock);  //TODO:
-  // if(temp)
-  // {
-  //   //printf("success ---- %s\n", t1->name);
-  //   return tid;
-  // }
-  // return -1;
-  return tid;
+  bool temp = t1->success;
+  // sema_up(&t1->load_suc_lock);  //TODO:
+  if(temp)
+  {
+    //printf("success ---- %s\n", t1->name);
+    return tid;
+  }
+  return -1;
 }
 
 /* A thread function that loads a user process and makes it start
@@ -253,6 +252,7 @@ process_wait (tid_t child_tid UNUSED)
   // sema_down(&(t->child_lock));  //child 있으면 lock 걸기
   sema_down(&(t1->child_exit_lock));
   exit_status = t1->exit_status;
+  list_remove(&(t1->child_elem));
   // printf("**** tid:%d, namd: %s\n", t1->tid, t1->name);
   sema_up(&(t1->exit_status_lock));
 
@@ -287,8 +287,9 @@ process_exit (void)
     }
 
   sema_up(&(curr->child_exit_lock));
+  
   sema_down(&(curr->exit_status_lock));
-
+  
   // if(curr->wait)
   // {
   //   sema_up(&(curr->child_lock));
@@ -303,7 +304,7 @@ process_exit (void)
 
   // sema_down(&curr->wait_lock);
 
-  list_remove(&(curr->child_elem));
+  
 }
 
 /* Sets up the CPU for running user code in the current
