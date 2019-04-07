@@ -83,20 +83,22 @@ process_execute (const char *cmd)
   {
     return -1;
   }
-
-  sema_down(&(t1->load_lock));    //sema down after creating //TODO:
-  sema_down(&(t1->child_exit_lock));
+  //after chile created..
+  sema_down(&(t1->load_lock));  
+  // sema_down(&(t1->child_exit_lock));
 
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
-  bool temp = t1->success;
-  // sema_up(&t1->load_suc_lock);  //TODO:
-  if(temp)
-  {
-    //printf("success ---- %s\n", t1->name);
-    return tid;
-  }
-  return -1;
+
+  // bool temp = t1->success;
+  // // sema_up(&t1->load_suc_lock);  //TODO:
+  // if(temp)
+  // {
+  //   //printf("success ---- %s\n", t1->name);
+  //   return tid;
+  // }
+  // return -1;
+  return tid;
 }
 
 /* A thread function that loads a user process and makes it start
@@ -192,6 +194,7 @@ start_process (void *cmd)
   sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent
   // sema_down(&(thread_current()->load_suc_lock)); //TODO:
   
+  
   /* If load failed, quit. */
   if (!success)  //missing file..
   {
@@ -239,12 +242,14 @@ process_wait (tid_t child_tid UNUSED)
   {
     return -1;
   }
-  t->wait = true;
+  t1->wait = true;
   // sema_up(&t->wait_lock); //wait lock release
 
   // sema_down(&(t->child_lock));  //child 있으면 lock 걸기
-  exit_status = t->exit_status;
-  sema_up(&(t->exit_status_lock));
+  sema_down(&(t1->child_exit_lock));
+  exit_status = t1->exit_status;
+  // printf("**** tid:%d, namd: %s\n", t1->tid, t1->name);
+  sema_up(&(t1->exit_status_lock));
 
   // sema_up(&(t->memory_lock));   //release
   // sema_up(&t->wait_lock);

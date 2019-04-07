@@ -238,7 +238,9 @@ syscall_handler (struct intr_frame *f)
         for(i = 0; i < third; ++i)
         {
           if(put_user(second++, input_getc())==-1)
+          {
             break;
+          }
           // if(((char *)second)[i] == NULL)
           // {
           //   break; //remember i
@@ -292,7 +294,9 @@ syscall_handler (struct intr_frame *f)
         }
         if(thread_current()->f_d[fd]->deny_write)  //FIXME: rox check
         {
+          sema_down(&file_sema);
           file_deny_write(thread_current()->f_d[fd]);
+          sema_up(&file_sema);
         }
 
         sema_down(&file_sema);
