@@ -161,7 +161,7 @@ page_fault (struct intr_frame *f)
    if(!user) //kernel
    {
       f->eip = (void *)f->eax;
-      f->eax = 0xffffffff; //FIXME: not sure
+      f->eax = 0xffffffff;
       return; //??
    }
 
