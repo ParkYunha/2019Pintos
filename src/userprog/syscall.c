@@ -368,17 +368,18 @@ syscall_handler (struct intr_frame *f)
 
 void userp_exit (int status)  //userprog_exit
 {
-  int i;
   thread_current()->exit_status = status;
-  for(i = 3; i < 128; ++i)
-  {
-    if(thread_current()->f_d[i] != NULL)  //close all files before die
-    {
-      sema_down(&file_sema);
-      file_close(thread_current()->f_d[i]);
-      sema_up(&file_sema);
-    }
-  }
+
+  // int i;
+  // for(i = 3; i < 128; ++i)
+  // {
+  //   if(thread_current()->f_d[i] != NULL)  //close all files before die
+  //   {
+  //     sema_down(&file_sema);
+  //     file_close(thread_current()->f_d[i]);
+  //     sema_up(&file_sema);
+  //   }
+  // }
   printf("%s: exit(%d)\n", thread_name(), status);
   thread_exit(); 
 }

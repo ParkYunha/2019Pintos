@@ -80,14 +80,12 @@ process_execute (const char *cmd)
       }
     }
   }
-  
-  if(!t1)
+  if(!t1)   //no child t
   {
     return -1;
   }
   //after chile created..
   sema_down(&(t1->load_lock));  
-  // sema_down(&(t1->child_exit_lock));
 
   if (tid == TID_ERROR)
   {
@@ -95,12 +93,9 @@ process_execute (const char *cmd)
     palloc_free_page (cmd_copy);  
   }
     
-
   bool temp = t1->success;
-  // sema_up(&t1->load_suc_lock);  //TODO:
   if(temp)
   {
-    //printf("success ---- %s\n", t1->name);
     return tid;
   }
   return -1;
@@ -196,9 +191,7 @@ start_process (void *cmd)
   palloc_free_page (file_name);
 
   /* Prevent parent do something during child creating. */
-  sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent
-  // sema_down(&(thread_current()->load_suc_lock)); //TODO:
-  
+  sema_up(&(thread_current()->load_lock));  //thread_current() = child => lock parent  
   
   /* If load failed, quit. */
   if (!success)  //missing file..
@@ -247,18 +240,12 @@ process_wait (tid_t child_tid UNUSED)
     return -1;
   }
   t1->wait = true;
-  // sema_up(&t->wait_lock); //wait lock release
 
-  // sema_down(&(t->child_lock));  //child 있으면 lock 걸기
   sema_down(&(t1->child_exit_lock));
   exit_status = t1->exit_status;
   list_remove(&(t1->child_elem));
-  // printf("**** tid:%d, namd: %s\n", t1->tid, t1->name);
   sema_up(&(t1->exit_status_lock));
 
-  // sema_up(&(t->memory_lock));   //release
-  // sema_up(&t->wait_lock);
-  //t->wait = false;
   return exit_status;
 }
 
@@ -286,24 +273,20 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
-  sema_up(&(curr->child_exit_lock));
-  
-  sema_down(&(curr->exit_status_lock));
-  
-  // if(curr->wait)
+  // int i;
+  // for(i = 3; i < 128; ++i)
   // {
-  //   sema_up(&(curr->child_lock));
-  //   sema_down(&(curr->memory_lock));  //lock parent until child pass mem
+  //   if(curr->f_d[i] != NULL)  //close all open files before die
+  //   {
+  //     printf("**** curr: %d, i: %d\n", curr->tid, i);
+  //     sema_down(&file_sema);
+  //     file_close(curr->f_d[i]);
+  //     sema_up(&file_sema);
+  //   }
   // }
-  /* if wait = false, wait until parent wait(child=curr). */
-  
-  // sema_down(&curr->wait_lock);  //wait until parent wait
-  
-  // sema_up(&(curr->child_lock));
-  // sema_down(&(curr->memory_lock));  //lock parent until child pass mem
 
-  // sema_down(&curr->wait_lock);
-
+  sema_up(&(curr->child_exit_lock));
+  sema_down(&(curr->exit_status_lock));
   
 }
 
@@ -580,7 +563,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      it then user code that passed a null pointer to system calls
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
-  if (phdr->p_vaddr < PGSIZE)  //FIXME: what the??
+  if (phdr->p_vaddr < PGSIZE)
     return false;
 
   /* It's okay. */
