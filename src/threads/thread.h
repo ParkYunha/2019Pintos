@@ -111,6 +111,7 @@ struct thread
     int exit_status;
     struct file* f_d[128];               /* File descriptor. */     
     
+    
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

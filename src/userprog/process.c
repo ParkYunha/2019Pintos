@@ -82,8 +82,7 @@ process_execute (const char *cmd)
       }
     }
   }
-  
-  if(!t1)
+  if(!t1)   //no child t
   {
     palloc_free_page (fn_copy); 
     palloc_free_page (cmd_copy); 
@@ -98,11 +97,14 @@ process_execute (const char *cmd)
     palloc_free_page (cmd_copy);  
   }
     
-
   bool temp = t1->success;
   if(temp)
+<<<<<<< HEAD
   { 
     palloc_free_page (cmd_copy); 
+=======
+  {
+>>>>>>> 025de416910bf005234ae54c423d5ea150fc22ae
     return tid;
   }
   return -1;
@@ -280,8 +282,26 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
+<<<<<<< HEAD
   sema_up(&(curr->child_exit_lock));
   sema_down(&(curr->exit_status_lock));  
+=======
+  // int i;
+  // for(i = 3; i < 128; ++i)
+  // {
+  //   if(curr->f_d[i] != NULL)  //close all open files before die
+  //   {
+  //     printf("**** curr: %d, i: %d\n", curr->tid, i);
+  //     sema_down(&file_sema);
+  //     file_close(curr->f_d[i]);
+  //     sema_up(&file_sema);
+  //   }
+  // }
+
+  sema_up(&(curr->child_exit_lock));
+  sema_down(&(curr->exit_status_lock));
+  
+>>>>>>> 025de416910bf005234ae54c423d5ea150fc22ae
 }
 
 /* Sets up the CPU for running user code in the current
